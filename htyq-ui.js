@@ -1,4 +1,4 @@
-// UI 渲染模块 - 最终修复版（世界书列表通过 worldInfoManager 获取，不依赖404 API）
+// UI 渲染模块 - 完整修复版（所有面板齐全）
 window.HTYQ_UI = (function() {
     const STATE = window.HTYQ_STATE;
     if (!STATE) { console.error('HTYQ_STATE 未加载'); return {}; }
@@ -7,11 +7,10 @@ window.HTYQ_UI = (function() {
     let isEditing = false;
     function escapeHtml(str) { return STATE.escapeHtml(str); }
 
-    // 【修复】正确获取世界书列表（不使用 /api/worlds，改用 worldInfoManager）
+    // 获取世界书列表（使用 worldInfoManager）
     async function getAllWorlds() {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
-            // 优先使用 worldInfoManager (SillyTavern 1.12+)
             if (ctx.worldInfoManager) {
                 if (typeof ctx.worldInfoManager.getWorlds === 'function') {
                     const worlds = await ctx.worldInfoManager.getWorlds();
@@ -23,50 +22,39 @@ window.HTYQ_UI = (function() {
                     if (Array.isArray(worlds)) return worlds.map(w => w.name || w);
                 }
             }
-            // 降级：从已激活的 entries 提取（只能得到已激活的世界书）
             if (ctx.worldInfo && ctx.worldInfo.entries) {
                 const worlds = new Set();
                 ctx.worldInfo.entries.forEach(entry => { if (entry.world) worlds.add(entry.world); });
                 return Array.from(worlds);
             }
             return [];
-        } catch(e) {
-            console.warn('获取世界书列表失败', e);
-            return [];
-        }
+        } catch(e) { return []; }
     }
 
-    function getActiveWorlds() {
-        try {
-            const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
-            if (ctx.worldInfo && ctx.worldInfo.entries) {
-                const worlds = new Set();
-                ctx.worldInfo.entries.forEach(entry => { if (entry.world) worlds.add(entry.world); });
-                return Array.from(worlds);
-            }
-        } catch(e) {}
-        return [];
-    }
+    // ========== 所有渲染函数 ==========
 
-    // ========== 以下所有渲染函数保持不变，与之前提供的完全相同 ==========
-    // （为了节省篇幅，此处省略，请直接使用上一轮提供的完整版 htyq-ui.js 中的渲染函数）
-    // 注意：实际使用时请将下面的渲染函数完整粘贴进来
-
-    // 由于渲染函数代码很长，为免遗漏，我将它们完整附上（与之前相同）
     function renderDashboard(container) {
         const s = STATE.worldState;
         container.innerHTML = `
             <div class="htyq-card"><h3>⏰ 时间</h3><div>${escapeHtml(s.worldTime || '未知')}</div></div>
             <div class="htyq-card"><h3>🌍 世界状态摘要</h3><div class="htyq-digest">${escapeHtml(s.worldDigest)}</div></div>
-            <div class="htyq-card"><h3>📌 整体氛围</h3><div>${escapeHtml(s.overallAtmosphere)} | 驱动事件: ${escapeHtml(s.drivingEvent)}</div></div>
+            <div class="htyq-card"><h3>📌 整体氛围 / 驱动事件</h3><div>${escapeHtml(s.overallAtmosphere)} | ${escapeHtml(s.drivingEvent)}</div></div>
+            <div class="htyq-card"><h3>😊 市民情绪 / 治安状况</h3><div>${escapeHtml(s.citizenMood)} | ${escapeHtml(s.securityStatus)}</div></div>
             <div class="htyq-card"><h3>👁️ 直接接触层</h3><div>${escapeHtml(s.directLayer)}</div></div>
             <div class="htyq-card"><h3>🏘️ 近距离层</h3><div>${escapeHtml(s.nearLayer)}</div></div>
             <div class="htyq-card"><h3>🌄 远距离层</h3><div>${escapeHtml(s.farLayer)}</div></div>
-            <div class="htyq-card"><h3>🔥 活跃事件链</h3><ul>${s.events.slice(0,3).map(e => `<li>【${escapeHtml(e.name)}】${escapeHtml(e.stage || '萌芽')} (${e.currentRound || 0}/${e.totalRounds || 0}轮)</li>`).join('') || '<li>无</li>'}</ul></div>
-            <div class="htyq-card"><h3>🗣️ 最新流言</h3><ul>${s.rumors.slice(0,3).map(r => `<li>${escapeHtml((r.content || r.text || '')).substring(0,80)}...</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>🔥 活跃事件链</h3><ul>${s.events.slice(0,5).map(e => {
+                const remaining = (e.totalRounds && e.currentRound) ? (e.totalRounds - e.currentRound) : '?';
+                return `<li>【${escapeHtml(e.name)}】${escapeHtml(e.stage || '萌芽')} (剩余 ${remaining} 轮) — ${escapeHtml(e.desc || '')}</li>`;
+            }).join('') || '<li>无</li>'}</ul></div>
             <div class="htyq-card"><h3>📅 即将发生的日程</h3><ul>${s.upcomingSchedules.map(u => `<li>${escapeHtml(u.time)}：${escapeHtml(u.event)} → ${escapeHtml(u.involved)}</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>📜 近期玩家行动记录</h3><ul>${s.recentActions.map(a => `<li>${escapeHtml(a.action)} → 被 ${escapeHtml(a.noticedBy)} 注意到 → ${escapeHtml(a.consequence)}</li>`).join('') || '<li>无</li>'}</ul></div>
             <div class="htyq-card"><h3>🎲 随机事件</h3><ul>${s.randomEvents.map(r => `<li>${escapeHtml(r.description)}</li>`).join('') || '<li>无</li>'}</ul></div>
-            <div class="htyq-card"><h3>⭐ 声誉</h3><div>江湖:${s.reputation.jianghu} 官府:${s.reputation.official} 民间:${s.reputation.folk} 黑道:${s.reputation.underworld}</div></div>
+            <div class="htyq-card"><h3>⭐ 声誉</h3><div>江湖:${s.reputation.jianghu} 官府:${s.reputation.official} 民间:${s.reputation.folk} 黑道:${s.reputation.underworld}</div><div>变化: ${escapeHtml(s.reputationChange || '无')}</div></div>
+            <div class="htyq-card"><h3>🏛️ 权力顶点</h3><ul>${s.powerPeaks.map(p => `<li>${escapeHtml(p.name)} (${escapeHtml(p.group)}) — ${escapeHtml(p.personalGoal)}</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>💰 经济摘要</h3><div>资金状况: ${escapeHtml(s.economy.fundsStatus)}</div><div>市场趋势: ${escapeHtml(s.economy.marketTrend)}</div><div>关键物资: ${s.economy.keyResources.map(k => `${k.name}:${k.status}`).join(', ') || '无'}</div></div>
+            <div class="htyq-card"><h3>💬 内部消息</h3><ul>${s.internalMessages.map(m => `<li>【${escapeHtml(m.source)}】${escapeHtml(m.content)} (领先${m.leadRounds}轮)</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>📝 本轮重点</h3><div>${escapeHtml(s.roundFocus || '无')}</div></div>
         `;
     }
 
@@ -91,13 +79,18 @@ window.HTYQ_UI = (function() {
             container.innerHTML = '<div class="htyq-card">暂无事件链</div>';
             return;
         }
-        container.innerHTML = s.events.map(e => `
-            <div class="htyq-event-item">
-                <strong>${escapeHtml(e.name)}</strong> (Lv.${e.level || '?'})<br>
-                阶段: ${escapeHtml(e.stage || '萌芽')} (${e.currentRound || 0}/${e.totalRounds || 0})<br>
-                描述: ${escapeHtml(e.desc || '')}
-            </div>
-        `).join('');
+        container.innerHTML = s.events.map(e => {
+            const remaining = (e.totalRounds && e.currentRound) ? (e.totalRounds - e.currentRound) : '?';
+            return `
+                <div class="htyq-event-item">
+                    <strong>${escapeHtml(e.name)}</strong> (Lv.${e.level || '?'})<br>
+                    阶段: ${escapeHtml(e.stage || '萌芽')} (${e.currentRound || 0}/${e.totalRounds || '?'})<br>
+                    <span style="color: #fbbf24;">剩余传导轮数: ${remaining}</span><br>
+                    触发条件: ${escapeHtml(e.trigger || '未知')}<br>
+                    描述: ${escapeHtml(e.desc || '')}
+                </div>
+            `;
+        }).join('');
     }
 
     function renderFactions(container) {
@@ -108,7 +101,7 @@ window.HTYQ_UI = (function() {
         }
         container.innerHTML = s.factions.map(f => `
             <div class="htyq-faction-item">
-                <strong>${escapeHtml(f.name)}</strong><br>
+                <strong>${escapeHtml(f.name)}</strong> (区域: ${escapeHtml(f.region || '未知')})<br>
                 目标: ${escapeHtml(f.current_goal || '无')}<br>
                 进度: ${escapeHtml(f.progress || '未知')}<br>
                 凝聚力: ${escapeHtml(f.cohesion || '未知')} | 资源: ${escapeHtml(f.resources || '未知')}<br>
@@ -142,17 +135,19 @@ window.HTYQ_UI = (function() {
             <div class="htyq-rumor-item">
                 <strong>${escapeHtml(r.type || '流言')}</strong><br>
                 ${escapeHtml(r.content || r.text || '')}<br>
-                <small>范围: ${escapeHtml(r.scope || '未知')} | 可信度: ${escapeHtml(r.credibility || '未知')} | 来源: ${escapeHtml(r.source || '未知')}</small>
+                <small>范围: ${escapeHtml(r.scope || '未知')} | 可信度: ${escapeHtml(r.credibility || '未知')} | 来源: ${escapeHtml(r.source || '未知')} | 热度: ${escapeHtml(r.heat || '中')}</small>
             </div>
         `).join('');
     }
 
     function renderEconomy(container) {
         const s = STATE.worldState;
+        const vis = s.economy.economyVisibility || {};
         container.innerHTML = `
-            <div class="htyq-card"><h3>💰 玩家资金</h3><div>${s.economy.userGold} 金币</div></div>
+            <div class="htyq-card"><h3>💰 玩家资金</h3><div>${s.economy.userGold} 金币</div><div>资金状况: ${escapeHtml(s.economy.fundsStatus)}</div></div>
             <div class="htyq-card"><h3>📈 市场趋势</h3><div>${escapeHtml(s.economy.marketTrend)}</div></div>
-            <div class="htyq-card"><h3>📦 关键物资</h3><ul>${(s.economy.keyResources || []).map(k => `<li>${escapeHtml(k)}</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>📦 关键物资</h3><ul>${(s.economy.keyResources || []).map(k => `<li>${escapeHtml(k.name)}: ${escapeHtml(k.status)}</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>👁️ 经济事件可见性</h3><div>行为: ${escapeHtml(vis.behavior || '无')}</div><div>可见: ${vis.visible ? '是' : '否'}</div><div>目击者: ${escapeHtml(vis.witnesses?.join(', ') || '无')}</div><div>已产生流言: ${vis.rumorGenerated ? '是' : '否'}</div></div>
         `;
     }
 
@@ -182,7 +177,69 @@ window.HTYQ_UI = (function() {
                     <div>民间口碑: ${s.reputation.folk}</div>
                     <div>黑道地位: ${s.reputation.underworld}</div>
                 </div>
+                <div>本轮变化: ${escapeHtml(s.reputationChange || '无')}</div>
             </div>
+        `;
+    }
+
+    // 新增：已出场角色状态页面
+    function renderCharacterStates(container) {
+        const s = STATE.worldState;
+        if (!s.characterStates.length) {
+            container.innerHTML = '<div class="htyq-card">暂无角色状态</div>';
+            return;
+        }
+        container.innerHTML = s.characterStates.map(c => `
+            <div class="htyq-card">
+                <h3>${escapeHtml(c.name)} <span style="color:#fbbf24;">(${escapeHtml(c.importance || '普通')})</span></h3>
+                <div><strong>状态:</strong> ${escapeHtml(c.status || '未知')}</div>
+                <div><strong>情绪:</strong> ${escapeHtml(c.emotion || '平静')}</div>
+                <div><strong>对主角态度:</strong> ${escapeHtml(c.attitudeToUser || '中立')}</div>
+                <div><strong>关系网:</strong> ${escapeHtml(c.relationshipMap || '无')}</div>
+            </div>
+        `).join('');
+    }
+
+    // 新增：因果链独立页面
+    function renderCausalChain(container) {
+        const s = STATE.worldState;
+        if (!s.causalChain.length) {
+            container.innerHTML = '<div class="htyq-card">暂无因果链追踪</div>';
+            return;
+        }
+        container.innerHTML = s.causalChain.map(c => `
+            <div class="htyq-card">
+                <h3>🔗 ${escapeHtml(c.rumorOrEvent)}</h3>
+                <div><strong>进展:</strong> ${escapeHtml(c.progress)}</div>
+                <div><strong>本轮体现:</strong> ${escapeHtml(c.manifestation)}</div>
+            </div>
+        `).join('');
+    }
+
+    // 新增：外交事件页面
+    function renderDiplomaticEvents(container) {
+        const s = STATE.worldState;
+        if (!s.diplomaticEvents.length) {
+            container.innerHTML = '<div class="htyq-card">本轮无外交事件</div>';
+            return;
+        }
+        container.innerHTML = s.diplomaticEvents.map(e => `
+            <div class="htyq-card">
+                <h3>${escapeHtml(e.name || '外交事件')}</h3>
+                <div>${escapeHtml(e.description || '')}</div>
+            </div>
+        `).join('');
+    }
+
+    // 新增：备忘页面（待爆发、待回收、关键数值、血仇等）
+    function renderMemos(container) {
+        const s = STATE.worldState;
+        container.innerHTML = `
+            <div class="htyq-card"><h3>⏳ 待爆发事件链</h3><ul>${s.pendingEvents.map(e => `<li>${escapeHtml(e)}</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>📌 待回收伏笔</h3><ul>${s.pendingForeshadowing.map(f => `<li>${escapeHtml(f)}</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>🔢 关键数值备忘</h3><div>${escapeHtml(s.keyValuesMemo || '无')}</div></div>
+            <div class="htyq-card"><h3>🩸 血仇备忘</h3><div>${escapeHtml(s.bloodFeudMemo || '无')}</div></div>
+            <div class="htyq-card"><h3>🌍 跨区域角色备忘</h3><div>${escapeHtml(s.crossRegionMemo || '无')}</div></div>
         `;
     }
 
@@ -269,16 +326,8 @@ window.HTYQ_UI = (function() {
         }
 
         const refreshBtn = document.getElementById('htyq-refresh-worlds');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', async () => {
-                await refreshWorldsListUI();
-                STATE.showFloatingWarning('世界书列表已刷新', false);
-            });
-        }
-
-        if (!worldState.autoBindCharacterWorld) {
-            refreshWorldsListUI();
-        }
+        if (refreshBtn) refreshBtn.addEventListener('click', async () => { await refreshWorldsListUI(); STATE.showFloatingWarning('世界书列表已刷新', false); });
+        if (!worldState.autoBindCharacterWorld) refreshWorldsListUI();
 
         document.querySelectorAll('input[name="worldBindMode"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -304,7 +353,6 @@ window.HTYQ_UI = (function() {
             });
         }
 
-        // 其他事件绑定保持不变
         document.querySelectorAll('input[name="apiMode"]').forEach(r => r.addEventListener('change', (e) => {
             document.getElementById('htyq-custom-settings').style.display = e.target.value === 'custom' ? 'block' : 'none';
         }));
@@ -402,6 +450,10 @@ window.HTYQ_UI = (function() {
             case 'economy': renderEconomy(viewDiv); break;
             case 'blackmarket': renderBlackMarket(viewDiv); break;
             case 'reputation': renderReputation(viewDiv); break;
+            case 'characters': renderCharacterStates(viewDiv); break;
+            case 'causal': renderCausalChain(viewDiv); break;
+            case 'diplomacy': renderDiplomaticEvents(viewDiv); break;
+            case 'memos': renderMemos(viewDiv); break;
             case 'settings': renderSettings(viewDiv); break;
         }
         const roundSpan = document.getElementById('htyq-round');
@@ -426,6 +478,10 @@ window.HTYQ_UI = (function() {
                     <button data-tab="economy" class="htyq-tab-btn">💰 经济</button>
                     <button data-tab="blackmarket" class="htyq-tab-btn">🕶️ 黑市</button>
                     <button data-tab="reputation" class="htyq-tab-btn">⭐ 声誉</button>
+                    <button data-tab="characters" class="htyq-tab-btn">👥 角色状态</button>
+                    <button data-tab="causal" class="htyq-tab-btn">🔗 因果链</button>
+                    <button data-tab="diplomacy" class="htyq-tab-btn">🤝 外交事件</button>
+                    <button data-tab="memos" class="htyq-tab-btn">📋 备忘</button>
                     <button data-tab="settings" class="htyq-tab-btn">⚙️ 设置</button>
                 </div>
             </div>
@@ -438,6 +494,10 @@ window.HTYQ_UI = (function() {
             <div class="htyq-view" id="htyq-view-economy"></div>
             <div class="htyq-view" id="htyq-view-blackmarket"></div>
             <div class="htyq-view" id="htyq-view-reputation"></div>
+            <div class="htyq-view" id="htyq-view-characters"></div>
+            <div class="htyq-view" id="htyq-view-causal"></div>
+            <div class="htyq-view" id="htyq-view-diplomacy"></div>
+            <div class="htyq-view" id="htyq-view-memos"></div>
             <div class="htyq-view" id="htyq-view-settings"></div>
             <div class="htyq-footer">
                 <button id="htyq-evolve-btn" class="htyq-evolve-btn">🌀 手动推演一轮</button>
@@ -446,15 +506,10 @@ window.HTYQ_UI = (function() {
         `;
 
         const evolveBtn = document.getElementById('htyq-evolve-btn');
-        if (evolveBtn) {
-            evolveBtn.addEventListener('click', () => {
-                if (window.HTYQ_EVOLUTION && window.HTYQ_EVOLUTION.runEvolution) {
-                    window.HTYQ_EVOLUTION.runEvolution(true);
-                } else {
-                    STATE.showFloatingWarning('推演模块未就绪，请刷新页面', true);
-                }
-            });
-        }
+        if (evolveBtn) evolveBtn.addEventListener('click', () => {
+            if (window.HTYQ_EVOLUTION && window.HTYQ_EVOLUTION.runEvolution) window.HTYQ_EVOLUTION.runEvolution(true);
+            else STATE.showFloatingWarning('推演模块未就绪，请刷新页面', true);
+        });
 
         const tabBtns = container.querySelectorAll('.htyq-tab-btn');
         const views = container.querySelectorAll('.htyq-view');
@@ -477,7 +532,7 @@ window.HTYQ_UI = (function() {
                 if (mobileSelect) {
                     mobileSelect.style.display = 'block';
                     mobileSelect.innerHTML = '';
-                    const tabs = ['dashboard','chronicle','events','factions','relations','rumors','economy','blackmarket','reputation','settings'];
+                    const tabs = ['dashboard','chronicle','events','factions','relations','rumors','economy','blackmarket','reputation','characters','causal','diplomacy','memos','settings'];
                     tabs.forEach(t => { const opt = document.createElement('option'); opt.value = t; opt.textContent = t.charAt(0).toUpperCase() + t.slice(1); if (t === currentTab) opt.selected = true; mobileSelect.appendChild(opt); });
                 }
             } else {
