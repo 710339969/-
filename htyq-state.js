@@ -34,21 +34,21 @@ window.HTYQ_STATE = (function() {
             autoBindCharacterWorld: true,
             selectedWorlds: [],
             // ========== 新增详细面板字段 ==========
-            worldTime: '',                 // 时间
-            overallAtmosphere: '',        // 整体氛围
-            drivingEvent: '',             // 驱动事件
-            citizenMood: '',              // 市民情绪
-            securityStatus: '',           // 治安状况
-            directLayer: '',              // 直接接触层
-            nearLayer: '',                // 近距离层
-            farLayer: '',                 // 远距离层
-            upcomingSchedules: [],        // 即将发生的日程
-            recentActions: [],            // 近期玩家行动记录
-            memorySummary: '',            // 剧情记忆摘要
-            causalChain: [],              // 因果链
-            randomEvents: [],             // 随机事件
-            powerPeaks: [],               // 权力顶点
-            internalMessages: []          // 内部消息
+            worldTime: '',
+            overallAtmosphere: '',
+            drivingEvent: '',
+            citizenMood: '',
+            securityStatus: '',
+            directLayer: '',
+            nearLayer: '',
+            farLayer: '',
+            upcomingSchedules: [],
+            recentActions: [],
+            memorySummary: '',
+            causalChain: [],
+            randomEvents: [],
+            powerPeaks: [],
+            internalMessages: []
         };
     }
 
