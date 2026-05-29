@@ -1,4 +1,4 @@
-// 悬浮地球面板 - 主脚本
+// 悬浮地球面板 - 稳定版（仅拖拽和空白面板）
 (function() {
     if (window.__FLOATING_GLOBE_LOADED__) return;
     window.__FLOATING_GLOBE_LOADED__ = true;
@@ -20,7 +20,7 @@
             <span class="st-panel-title">📋 空白面板</span>
             <button class="st-panel-close" aria-label="关闭">✕</button>
         </div>
-        <div class="st-panel-content">
+        <div class="st-panel-content" id="st-panel-content">
             <p style="text-align: center; color: var(--SmartThemeHintColor, #aaa);">
                 ✨ 空白面板 ✨<br>
                 可拖拽移动<br>
@@ -35,7 +35,6 @@
     const STORAGE_KEY_GLOBE = 'st_floating_globe_pos';
     const STORAGE_KEY_PANEL = 'st_floating_panel_pos';
 
-    // 辅助函数
     function getSavedPosition(key, defaultLeft, defaultTop, w, h) {
         const saved = localStorage.getItem(key);
         if (saved) {
@@ -101,7 +100,6 @@
         if (panel.style.display !== 'none') clampPosition(panel, STORAGE_KEY_PANEL);
     });
 
-    // 拖拽功能（支持触摸）
     function makeDraggable(el, onDragEnd, handleSelector = null) {
         let startX = 0, startY = 0, startLeft = 0, startTop = 0, dragging = false;
         const dragHandle = handleSelector ? el.querySelector(handleSelector) : el;
@@ -163,7 +161,6 @@
     makeDraggable(globe, (l,t) => savePosition(STORAGE_KEY_GLOBE, l, t));
     makeDraggable(panel, (l,t) => savePosition(STORAGE_KEY_PANEL, l, t), '.st-panel-header');
 
-    // 悬浮球点击：切换面板显示
     let dragMoved = false, dragStarted = false;
     globe.addEventListener('mousedown', () => { dragMoved = false; dragStarted = true; });
     globe.addEventListener('touchstart', () => { dragMoved = false; dragStarted = true; });
@@ -216,8 +213,7 @@
         closePanel();
     });
 
-    // 初始化位置
     initGlobe();
     initPanel();
-    panel.style.display = 'none'; // 初始隐藏
+    panel.style.display = 'none';
 })();
