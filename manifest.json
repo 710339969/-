@@ -1,0 +1,10 @@
+{
+  "display_name": "🌐 悬浮地球面板",
+  "author": "YourName",
+  "description": "可拖拽的地球悬浮球，点击打开可拖拽的空白面板，适配手机与电脑",
+  "version": "1.0.0",
+  "license": "MIT",
+  "type": "extension",
+  "js": "main.js",
+  "css": "style.css"
+}
