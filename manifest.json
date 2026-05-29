@@ -5,6 +5,6 @@
   "version": "1.1.0",
   "license": "MIT",
   "type": "extension",
-  "js": ["main.js", "htyq-engine.js"],
+  "js": "main.js",
   "css": "style.css"
 }
