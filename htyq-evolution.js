@@ -32,7 +32,7 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) { console.warn(e); }
     }
 
-    // 【修复】通过 API 获取指定世界书的完整内容（包括未激活条目）
+    // 通过 API 获取指定世界书的完整内容（包括未激活条目）
     async function fetchWorldContent(worldName) {
         try {
             const res = await fetch('/api/worldinfo/get', {
@@ -74,19 +74,15 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) { return ''; }
     }
 
-    // 【增强】构建详细推演 Prompt
     async function buildEvolutionPrompt() {
         const rules = RULES.getFullSystemRules(STATE.globalApiSettings.enabledDlcs);
         let worldContext = '';
 
-        // 角色卡信息
         worldContext += await getCharacterCardInfo();
 
-        // 世界书内容
         const ws = STATE.worldState;
         let worldContent = '';
         if (ws.autoBindCharacterWorld) {
-            // 自动模式：获取角色卡绑定的世界书
             try {
                 const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
                 const charId = ctx.characterId;
@@ -113,7 +109,6 @@ window.HTYQ_EVOLUTION = (function() {
         }
 
         const s = STATE.worldState;
-        // 构建包含详细状态的面板上下文
         return `${rules}\n${worldContext}\n当前世界状态：\n轮次：${s.round}\n时间：${s.worldTime || '未知'}\n世界摘要：${s.worldDigest}\n整体氛围：${s.overallAtmosphere}\n驱动事件：${s.drivingEvent}\n星象：${s.astrology}\n治安状况：${s.securityStatus}\n市民情绪：${s.citizenMood}\n直接接触层：${s.directLayer}\n近距离层：${s.nearLayer}\n远距离层：${s.farLayer}\n事件链：${JSON.stringify(s.events.slice(0,5))}\n团体：${JSON.stringify(s.factions.slice(0,5))}\n流言：${JSON.stringify(s.rumors.slice(0,5))}\n声誉：${JSON.stringify(s.reputation)}\n金币：${s.economy.userGold}\n即将发生的日程：${JSON.stringify(s.upcomingSchedules)}\n随机事件：${JSON.stringify(s.randomEvents)}\n请根据上述角色设定和世界书，推演世界新状态，以JSON格式返回，必须包含以下字段：\nworld_time, world_digest, overall_atmosphere, driving_event, citizen_mood, security_status, astrology, direct_layer, near_layer, far_layer, upcoming_schedules(数组，每个元素含time,event,involved,potentialImpact), reputation(四个维度), rumors(数组，每个对象含content,type,scope,credibility,source,impact), events(数组，每个对象含name,level,stage,currentRound,totalRounds,desc), factions(数组，每个对象含name,current_goal,progress,cohesion,resources,attention_to_user,core_character), faction_relations(数组，每个对象含factionA,factionB,relation,level,trend), economy(包含userGold变化, marketTrend, keyResources数组), blackMarket(数组，每个对象含type,description,price,method,risk), accidents(数组), active_contact(可选), recent_actions(数组，每个对象含action,noticedBy,consequence), memory_summary(字符串), causal_chain(数组，每个对象含rumorOrEvent,progress,manifestation), random_events(数组，每个对象含description,impact), power_peaks(数组，每个对象含name,group,title,personalGoal,pillars), internal_messages(数组，每个对象含source,group,relation,content,leadRounds), secret_box(对象，含actions数组,assets数组)。\n只返回JSON，不要有其他文字。`;
     }
 
@@ -131,7 +126,6 @@ window.HTYQ_EVOLUTION = (function() {
         if (data.astrology && typeof data.astrology === 'string') { s.astrology = data.astrology; changed = true; }
         if (data.reputation && typeof data.reputation === 'object') { s.reputation = { ...s.reputation, ...data.reputation }; changed = true; }
         
-        // 数组字段
         if (Array.isArray(data.rumors) && data.rumors.length) { s.rumors = [...data.rumors, ...s.rumors].slice(0, 30); changed = true; }
         if (Array.isArray(data.events)) {
             for (const e of data.events) {
@@ -178,7 +172,7 @@ window.HTYQ_EVOLUTION = (function() {
             }
             changed = true;
         }
-        if (data.active_contact) { changed = true; }  // 修复：标记变更
+        if (data.active_contact) { changed = true; }
 
         // 详细面板字段
         if (data.world_time) { s.worldTime = data.world_time; changed = true; }
@@ -243,11 +237,10 @@ window.HTYQ_EVOLUTION = (function() {
         floatingToast = null;
     }
 
-    // 【修复】重试逻辑：不传递 retry 标志，仅基于 currentRetry
     async function attemptEvolution(manual) {
         const maxRetries = 3;
         try {
-            const prompt = await buildEvolutionPrompt();  // 注意 await
+            const prompt = await buildEvolutionPrompt();
             console.log('推演 Prompt 长度:', prompt.length);
             let rawResult;
             const settings = STATE.globalApiSettings;
