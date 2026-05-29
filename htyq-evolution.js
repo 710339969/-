@@ -1,4 +1,4 @@
-// 推演核心模块 - 支持世界书绑定模式
+// 推演核心模块 - 修复重试提示和手动推演按钮联动
 window.HTYQ_EVOLUTION = (function() {
     const STATE = window.HTYQ_STATE;
     const RULES = window.HTYQ_RULES;
@@ -32,7 +32,7 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) { console.warn(e); }
     }
 
-    // 根据世界书名称列表获取内容（从已加载的 entries 中筛选）
+    // 获取世界书内容
     function getWorldContentByNames(worldNames) {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
@@ -40,19 +40,18 @@ window.HTYQ_EVOLUTION = (function() {
             const selectedEntries = allEntries.filter(entry => worldNames.includes(entry.world));
             let content = '';
             for (const entry of selectedEntries) {
-                // 可选项：只注入 constant: true 的条目，这里注入所有
                 content += `【${entry.comment || '世界设定'}】${entry.content}\n`;
             }
             return content;
         } catch(e) { return ''; }
     }
 
-    // ========== 构建推演 Prompt ==========
+    // ========== 构建 Prompt ==========
     function buildEvolutionPrompt() {
         const rules = RULES.getFullSystemRules(STATE.globalApiSettings.enabledDlcs);
         let worldContext = '';
 
-        // 1. 角色卡信息
+        // 角色卡信息
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
             const charId = ctx.characterId;
@@ -71,36 +70,27 @@ window.HTYQ_EVOLUTION = (function() {
             }
         } catch(e) { console.warn(e); }
 
-        // 2. 世界书内容（根据绑定模式）
+        // 世界书内容
         let worldContent = '';
         const ws = STATE.worldState;
         if (ws.autoBindCharacterWorld) {
-            // 自动模式：获取角色卡绑定的世界书名称
             try {
                 const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
                 const charId = ctx.characterId;
                 if (charId) {
                     const characters = ctx.characters || [];
                     const char = characters.find(c => c.avatar === charId || c.id === charId);
-                    if (char && char.world) {
-                        worldContent = getWorldContentByNames([char.world]);
-                    }
+                    if (char && char.world) worldContent = getWorldContentByNames([char.world]);
                 }
-            } catch(e) { console.warn(e); }
+            } catch(e) {}
         } else {
-            // 手动模式：使用选中的世界书列表
             const selected = ws.selectedWorlds || [];
-            if (selected.length) {
-                worldContent = getWorldContentByNames(selected);
-            }
+            if (selected.length) worldContent = getWorldContentByNames(selected);
         }
-
         if (worldContent) {
             const maxChars = STATE.globalApiSettings.worldInfoMaxChars || 2000;
             worldContext += `\n【世界书设定】\n${worldContent.substring(0, maxChars)}\n`;
         }
-
-        // 3. 自定义背景
         if (STATE.globalApiSettings.customWorldInfo && STATE.globalApiSettings.customWorldInfo.trim()) {
             worldContext += `\n【额外世界背景】\n${STATE.globalApiSettings.customWorldInfo.substring(0, 2000)}\n`;
         }
@@ -109,7 +99,7 @@ window.HTYQ_EVOLUTION = (function() {
         return `${rules}\n${worldContext}\n当前世界状态：\n轮次：${s.round}\n世界摘要：${s.worldDigest}\n星象：${s.astrology}\n事件链：${JSON.stringify(s.events.slice(0,5))}\n团体：${JSON.stringify(s.factions.slice(0,5))}\n流言：${JSON.stringify(s.rumors.slice(0,5))}\n声誉：${JSON.stringify(s.reputation)}\n金币：${s.economy.userGold}\n请根据上述角色设定和世界书，推演世界新状态，以JSON格式返回，必须包含字段：world_digest, astrology, reputation(四个维度), rumors(数组), events(数组), factions(数组), faction_relations(数组), economy(包含userGold变化和marketTrend), blackMarket(数组), active_contact(可选), accidents(数组)。只返回JSON，不要有其他文字。`;
     }
 
-    // ========== 应用推演结果 ==========
+    // ========== 应用结果 ==========
     function applyEvolution(data) {
         const s = STATE.worldState;
         if (data.world_digest) s.worldDigest = data.world_digest;
@@ -157,19 +147,41 @@ window.HTYQ_EVOLUTION = (function() {
         STATE.saveWorldState();
     }
 
-    // ========== 推演与重试逻辑 ==========
+    // ========== 推演与重试（带持续提示） ==========
     let isEvolving = false;
-    let evolveRetryCount = 0;
+    let currentRetry = 0;
     let floatingToast = null;
 
-    function showEvolvingToast(text, isError = false) {
+    function showPersistentToast(text, isError = false, duration = null) {
         if (floatingToast && floatingToast.parentNode) floatingToast.remove();
         floatingToast = document.createElement('div');
-        floatingToast.style.cssText = `position:fixed; bottom:20px; right:20px; background:${isError ? '#dc2626' : '#1f2937'}; color:white; padding:8px 16px; border-radius:8px; z-index:10004; font-size:14px; font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.3); pointer-events:none;`;
-        floatingToast.textContent = text;
+        floatingToast.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: ${isError ? '#dc2626' : '#1f2937'};
+            color: white;
+            padding: 10px 18px;
+            border-radius: 8px;
+            z-index: 10004;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+            pointer-events: auto;
+            cursor: pointer;
+            max-width: 300px;
+            text-align: center;
+        `;
+        floatingToast.innerHTML = text + '<br><small style="font-size:10px;">点击关闭</small>';
+        floatingToast.onclick = () => floatingToast.remove();
         document.body.appendChild(floatingToast);
+        if (duration) setTimeout(() => { if (floatingToast && floatingToast.parentNode) floatingToast.remove(); }, duration);
     }
-    function hideEvolvingToast() { if (floatingToast && floatingToast.parentNode) floatingToast.remove(); floatingToast = null; }
+
+    function hidePersistentToast() {
+        if (floatingToast && floatingToast.parentNode) floatingToast.remove();
+        floatingToast = null;
+    }
 
     async function attemptEvolution(manual, retry = false) {
         const maxRetries = 3;
@@ -221,31 +233,40 @@ window.HTYQ_EVOLUTION = (function() {
                 }
                 await insertActiveContactMessage(evolutionData.active_contact.details);
             }
-            evolveRetryCount = 0;
+            currentRetry = 0;
+            hidePersistentToast();
+            STATE.showFloatingWarning('世界推演完成', false);
             return;
         } catch (err) {
-            if (retry || evolveRetryCount >= maxRetries) throw err;
-            evolveRetryCount++;
-            showEvolvingToast(`🌍 推演失败，第${evolveRetryCount}次重试...`, true);
+            if (retry || currentRetry >= maxRetries) throw err;
+            currentRetry++;
+            const retryMsg = `🌍 推演失败 (${err.message})，第${currentRetry}/${maxRetries}次重试...`;
+            showPersistentToast(retryMsg, true, 3000);
             await new Promise(r => setTimeout(r, 2000));
             return attemptEvolution(manual, true);
         }
     }
 
     async function runEvolution(manual = false) {
-        if (isEvolving) { STATE.showFloatingWarning('推演进行中，请稍后', true); return; }
+        if (isEvolving) {
+            STATE.showFloatingWarning('推演进行中，请稍后', true);
+            return;
+        }
         isEvolving = true;
-        evolveRetryCount = 0;
-        showEvolvingToast('🌍 世界演化中... 第1次尝试');
+        currentRetry = 0;
+        showPersistentToast('🌍 世界演化中... 第1次尝试', false);
         try {
             await attemptEvolution(manual);
-            hideEvolvingToast();
-            STATE.showFloatingWarning('世界推演完成', false);
         } catch (err) {
             console.error(err);
-            hideEvolvingToast();
-            STATE.showFloatingWarning(`推演失败: ${err.message}，请手动重试`, true);
-        } finally { isEvolving = false; }
+            hidePersistentToast();
+            STATE.showFloatingWarning(`推演彻底失败: ${err.message}，请手动重试`, true);
+            if (manual) {
+                // 手动模式下可再次点击按钮，不需额外动作
+            }
+        } finally {
+            isEvolving = false;
+        }
     }
 
     function injectWorldSummaryToChat() {
@@ -272,8 +293,12 @@ window.HTYQ_EVOLUTION = (function() {
             autoPollCounter++;
             if (autoPollCounter >= settings.autoPollInterval) {
                 autoPollCounter = 0;
-                if (STATE.worldState.breaker <= 0) runEvolution(false).catch(console.warn);
-                else { STATE.worldState.breaker--; STATE.saveWorldState(); }
+                if (STATE.worldState.breaker <= 0) {
+                    runEvolution(false).catch(console.warn);
+                } else {
+                    STATE.worldState.breaker--;
+                    STATE.saveWorldState();
+                }
             }
         }
     }
@@ -292,7 +317,7 @@ window.HTYQ_EVOLUTION = (function() {
             if (ctx && ctx.eventSource) {
                 ctx.eventSource.on('message_received', onMessageReceived);
                 ctx.eventSource.on('chat_loaded', onChatLoaded);
-                console.log('已绑定活体引擎事件到 eventSource');
+                console.log('活体引擎事件已绑定到 eventSource');
                 eventsBound = true;
                 return;
             }
@@ -300,7 +325,7 @@ window.HTYQ_EVOLUTION = (function() {
         if (typeof eventOn === 'function') {
             eventOn('message_received', onMessageReceived);
             eventOn('chat_loaded', onChatLoaded);
-            console.log('已绑定活体引擎事件到 eventOn');
+            console.log('活体引擎事件已绑定到 eventOn');
             eventsBound = true;
             return;
         }
