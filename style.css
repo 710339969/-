@@ -65,7 +65,7 @@
     .st-floating-panel {
         width: 540px !important;
         height: 600px !important;
-        min-width: 400px;
+        min-width: 480px;
         min-height: 500px;
     }
 }
@@ -178,7 +178,9 @@
     cursor: pointer;
     font-size: 12px;
     margin-bottom: 8px;
+    transition: opacity 0.2s;
 }
+.htyq-small-btn:hover { opacity: 0.9; }
 .htyq-del-btn {
     background: #ef4444;
     border: none;
@@ -285,6 +287,15 @@
     position: fixed;
     inset: 0;
     background: rgba(255,0,0,0.18);
+    pointer-events: none;
+    z-index: 999999;
+    animation: htyqFlash 0.8s;
+}
+.htyq-flash-gold-trigger::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(255,215,0,0.18);
     pointer-events: none;
     z-index: 999999;
     animation: htyqFlash 0.8s;
