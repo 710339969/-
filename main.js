@@ -1,4 +1,4 @@
-// 悬浮地球面板 - 修复模块加载顺序
+// 悬浮地球面板 - 修复模块加载顺序（串行加载）
 (function() {
     if (window.__FLOATING_GLOBE_LOADED__) return;
     window.__FLOATING_GLOBE_LOADED__ = true;
@@ -32,7 +32,6 @@
     const STORAGE_KEY_GLOBE = 'st_floating_globe_pos';
     const STORAGE_KEY_PANEL = 'st_floating_panel_pos';
 
-    // 位置辅助函数（保持不变）
     function getSavedPosition(key, defaultLeft, defaultTop, w, h) {
         const saved = localStorage.getItem(key);
         if (saved) {
@@ -102,7 +101,6 @@
         if (panel.style.display !== 'none') clampPosition(panel, STORAGE_KEY_PANEL);
     });
 
-    // 拖拽逻辑
     function makeDraggable(el, onDragEnd, handleSelector = null) {
         let startX = 0, startY = 0, startLeft = 0, startTop = 0, dragging = false;
         const dragHandle = handleSelector ? el.querySelector(handleSelector) : el;
@@ -164,7 +162,6 @@
     makeDraggable(globe, (l,t) => savePosition(STORAGE_KEY_GLOBE, l, t));
     makeDraggable(panel, (l,t) => savePosition(STORAGE_KEY_PANEL, l, t), '.st-panel-header');
 
-    // 开关面板逻辑
     let dragMoved = false, dragStarted = false;
     globe.addEventListener('mousedown', () => { dragMoved = false; dragStarted = true; });
     globe.addEventListener('touchstart', () => { dragMoved = false; dragStarted = true; });
