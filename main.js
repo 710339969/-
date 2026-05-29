@@ -65,8 +65,8 @@
 
     function initPanel() {
         if (window.innerWidth > 768) {
-            panel.style.width = '640px';
-            panel.style.height = '700px';
+            panel.style.width = '520px';
+            panel.style.height = '600px';
         }
         const w = panel.offsetWidth, h = panel.offsetHeight;
         const defaultLeft = Math.max(20, (window.innerWidth - w) / 2);
