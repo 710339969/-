@@ -1,4 +1,4 @@
-// UI 渲染模块 - 完整修复版
+// UI 渲染模块 - 完整修复版（修复流言显示、实现完整渲染、世界书列表本地获取）
 window.HTYQ_UI = (function() {
     const STATE = window.HTYQ_STATE;
     if (!STATE) { console.error('HTYQ_STATE 未加载'); return {}; }
@@ -7,27 +7,22 @@ window.HTYQ_UI = (function() {
     let isEditing = false;
     function escapeHtml(str) { return STATE.escapeHtml(str); }
 
-    // 获取所有世界书（包括未激活的）
+    // 【修复】直接通过 context.worldInfo.entries 获取世界书列表（无需 HTTP 请求）
     async function getAllWorlds() {
         try {
-            // 尝试新版 API
-            let res = await fetch('/api/worlds');
-            if (res.ok) {
-                let data = await res.json();
-                if (data.worlds && Array.isArray(data.worlds)) return data.worlds;
-                if (Array.isArray(data)) return data;
+            const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
+            const entries = ctx.worldInfo?.entries || [];
+            const worlds = new Set();
+            for (const entry of entries) {
+                if (entry.world) worlds.add(entry.world);
             }
-            // 尝试旧版 API
-            res = await fetch('/api/worlds/get');
-            if (res.ok) {
-                let data = await res.json();
-                if (data.worlds && Array.isArray(data.worlds)) return data.worlds;
-            }
-        } catch(e) { console.warn('获取世界书列表失败', e); }
-        return [];
+            return Array.from(worlds);
+        } catch(e) {
+            console.warn('获取世界书列表失败', e);
+            return [];
+        }
     }
 
-    // 获取已激活的世界书名称（用于自动模式）
     function getActiveWorlds() {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
@@ -40,26 +35,135 @@ window.HTYQ_UI = (function() {
         return [];
     }
 
-    // 渲染各个页面（dashboard, chronicle 等保持原有，仅设置页面重写）
+    // ---------- 渲染函数（完整实现）----------
     function renderDashboard(container) {
         const s = STATE.worldState;
         container.innerHTML = `
             <div class="htyq-card"><h3>🌍 世界状态摘要</h3><div class="htyq-digest">${escapeHtml(s.worldDigest)}</div></div>
             <div class="htyq-card"><h3>⭐ 星象分野</h3><div>${escapeHtml(s.astrology)}</div></div>
-            <div class="htyq-card"><h3>🔥 活跃事件链</h3><ul>${s.events.slice(0,3).map(e => `<li>【${escapeHtml(e.name)}】${escapeHtml(e.stage)} (${e.currentRound}/${e.totalRounds}轮)</li>`).join('') || '<li>无</li>'}</ul></div>
-            <div class="htyq-card"><h3>🗣️ 最新流言</h3><ul>${s.rumors.slice(0,3).map(r => `<li>${escapeHtml(r.text.substring(0,80))}...</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>🔥 活跃事件链</h3><ul>${s.events.slice(0,3).map(e => `<li>【${escapeHtml(e.name)}】${escapeHtml(e.stage || '萌芽')} (${e.currentRound || 0}/${e.totalRounds || 0}轮)</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>🗣️ 最新流言</h3><ul>${s.rumors.slice(0,3).map(r => `<li>${escapeHtml((r.content || r.text || '')).substring(0,80)}...</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>💰 经济趋势</h3><div>${escapeHtml(s.economy.marketTrend)}</div></div>
+            <div class="htyq-card"><h3>⭐ 声誉</h3><div>江湖:${s.reputation.jianghu} 官府:${s.reputation.official} 民间:${s.reputation.folk} 黑道:${s.reputation.underworld}</div></div>
         `;
     }
-    function renderChronicle(container) { /* 请保留您原有实现，此处为占位 */ container.innerHTML = '<div>编年史内容</div>'; }
-    function renderEvents(container) { /* 请保留原有实现 */ }
-    function renderFactions(container) { /* 请保留原有实现 */ }
-    function renderRelations(container) { /* 请保留原有实现 */ }
-    function renderRumors(container) { /* 请保留原有实现 */ }
-    function renderEconomy(container) { /* 请保留原有实现 */ }
-    function renderBlackMarket(container) { /* 请保留原有实现 */ }
-    function renderReputation(container) { /* 请保留原有实现 */ }
 
-    // 设置页面（重点）
+    function renderChronicle(container) {
+        const s = STATE.worldState;
+        if (!s.chronicles.length) {
+            container.innerHTML = '<div class="htyq-card">暂无编年史记录</div>';
+            return;
+        }
+        container.innerHTML = `<div class="htyq-chronicle-list">${s.chronicles.map(c => `
+            <div class="htyq-chronicle-item">
+                <div class="htyq-chronicle-title">${escapeHtml(c.title)}</div>
+                <div class="htyq-chronicle-content">${escapeHtml(c.content)}</div>
+                <div class="htyq-chronicle-date">第${c.round}轮 · ${new Date(c.timestamp).toLocaleString()}</div>
+            </div>
+        `).join('')}</div>`;
+    }
+
+    function renderEvents(container) {
+        const s = STATE.worldState;
+        if (!s.events.length) {
+            container.innerHTML = '<div class="htyq-card">暂无事件链</div>';
+            return;
+        }
+        container.innerHTML = s.events.map(e => `
+            <div class="htyq-event-item">
+                <strong>${escapeHtml(e.name)}</strong> (Lv.${e.level || '?'})<br>
+                阶段: ${escapeHtml(e.stage || '萌芽')} (${e.currentRound || 0}/${e.totalRounds || 0})<br>
+                描述: ${escapeHtml(e.desc || '')}
+            </div>
+        `).join('');
+    }
+
+    function renderFactions(container) {
+        const s = STATE.worldState;
+        if (!s.factions.length) {
+            container.innerHTML = '<div class="htyq-card">暂无势力</div>';
+            return;
+        }
+        container.innerHTML = s.factions.map(f => `
+            <div class="htyq-faction-item">
+                <strong>${escapeHtml(f.name)}</strong><br>
+                目标: ${escapeHtml(f.current_goal || '无')}<br>
+                进度: ${escapeHtml(f.progress || '未知')}<br>
+                凝聚力: ${escapeHtml(f.cohesion || '未知')} | 资源: ${escapeHtml(f.resources || '未知')}<br>
+                对主角关注: ${escapeHtml(f.attention_to_user || '无')}
+            </div>
+        `).join('');
+    }
+
+    function renderRelations(container) {
+        const s = STATE.worldState;
+        if (!s.factionRelations.length) {
+            container.innerHTML = '<div class="htyq-card">暂无团体关系</div>';
+            return;
+        }
+        container.innerHTML = s.factionRelations.map(r => `
+            <div class="htyq-relation-item">
+                ${escapeHtml(r.factionA)} ↔ ${escapeHtml(r.factionB)}<br>
+                关系: ${escapeHtml(r.relation)} (${r.level || '?'}/8) | 趋势: ${escapeHtml(r.trend || '稳定')}
+            </div>
+        `).join('');
+    }
+
+    function renderRumors(container) {
+        const s = STATE.worldState;
+        if (!s.rumors.length) {
+            container.innerHTML = '<div class="htyq-card">暂无流言</div>';
+            return;
+        }
+        container.innerHTML = s.rumors.map(r => `
+            <div class="htyq-rumor-item">
+                <strong>${escapeHtml(r.type || '流言')}</strong><br>
+                ${escapeHtml(r.content || r.text || '')}<br>
+                <small>范围: ${escapeHtml(r.scope || '未知')} | 可信度: ${escapeHtml(r.credibility || '未知')} | 来源: ${escapeHtml(r.source || '未知')}</small>
+            </div>
+        `).join('');
+    }
+
+    function renderEconomy(container) {
+        const s = STATE.worldState;
+        container.innerHTML = `
+            <div class="htyq-card"><h3>💰 玩家资金</h3><div>${s.economy.userGold} 金币</div></div>
+            <div class="htyq-card"><h3>📈 市场趋势</h3><div>${escapeHtml(s.economy.marketTrend)}</div></div>
+            <div class="htyq-card"><h3>📦 关键物资</h3><ul>${(s.economy.keyResources || []).map(k => `<li>${escapeHtml(k)}</li>`).join('') || '<li>无</li>'}</ul></div>
+        `;
+    }
+
+    function renderBlackMarket(container) {
+        const s = STATE.worldState;
+        if (!s.blackMarket.length) {
+            container.innerHTML = '<div class="htyq-card">暂无黑市交易</div>';
+            return;
+        }
+        container.innerHTML = s.blackMarket.map(item => `
+            <div class="htyq-blackmarket-item">
+                <strong>${escapeHtml(item.type)}</strong><br>
+                ${escapeHtml(item.description)}<br>
+                价格: ${escapeHtml(item.price)} | 风险: ${escapeHtml(item.risk)}
+            </div>
+        `).join('');
+    }
+
+    function renderReputation(container) {
+        const s = STATE.worldState;
+        container.innerHTML = `
+            <div class="htyq-card">
+                <h3>⭐ 四维声誉</h3>
+                <div class="htyq-reputation-grid">
+                    <div>江湖声望: ${s.reputation.jianghu}</div>
+                    <div>官府评价: ${s.reputation.official}</div>
+                    <div>民间口碑: ${s.reputation.folk}</div>
+                    <div>黑道地位: ${s.reputation.underworld}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 设置页面（保持不变，但内部 getAllWorlds 已修复）
     function renderSettings(container) {
         const set = STATE.globalApiSettings;
         const worldState = STATE.worldState;
@@ -114,7 +218,6 @@ window.HTYQ_UI = (function() {
             </div>
         `;
 
-        // 填充 DLC 复选框
         const dlcMap = { world_engine:'活体世界引擎', group_dynamics:'社会群体法则', active_contact:'主动接触判定', revenge:'恩怨录', blackmarket:'黑市', economy:'经济脉搏', accident:'意外事件', reputation:'声誉系统', power_peak:'权力顶点', group_relation:'团体关系', secret_asset:'信息黑盒' };
         const dlcContainer = document.getElementById('htyq-dlcs-container');
         if (dlcContainer) {
@@ -125,14 +228,13 @@ window.HTYQ_UI = (function() {
             }
         }
 
-        // 刷新世界书列表（异步获取所有世界书）
         async function refreshWorldsListUI() {
             const listDiv = document.getElementById('htyq-worlds-list');
             if (!listDiv) return;
             listDiv.innerHTML = '<div style="color:#fbbf24;">🔄 加载中...</div>';
             const worlds = await getAllWorlds();
             if (!worlds.length) {
-                listDiv.innerHTML = '<div style="color:#ef4444;">❌ 没有找到世界书文件，请确保在 worlds 目录下有 .json 文件。</div>';
+                listDiv.innerHTML = '<div style="color:#ef4444;">❌ 没有找到世界书文件，请确保 worlds 目录下有 .json 文件。</div>';
                 return;
             }
             const selected = STATE.worldState.selectedWorlds || [];
@@ -144,7 +246,6 @@ window.HTYQ_UI = (function() {
             `).join('');
         }
 
-        // 绑定刷新按钮
         const refreshBtn = document.getElementById('htyq-refresh-worlds');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', async () => {
@@ -153,12 +254,10 @@ window.HTYQ_UI = (function() {
             });
         }
 
-        // 如果手动模式可见，自动加载一次
         if (!worldState.autoBindCharacterWorld) {
             refreshWorldsListUI();
         }
 
-        // 模式切换
         document.querySelectorAll('input[name="worldBindMode"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 const isAuto = e.target.value === 'auto';
@@ -169,20 +268,22 @@ window.HTYQ_UI = (function() {
             });
         });
 
-        // 保存世界书绑定
         const saveWorldBtn = document.getElementById('htyq-save-world-bind');
         if (saveWorldBtn) {
-            saveWorldBtn.addEventListener('click', () => {
+            saveWorldBtn.addEventListener('click', async () => {
                 const checkboxes = document.querySelectorAll('#htyq-worlds-list input[type="checkbox"]');
                 const selected = [];
                 checkboxes.forEach(cb => { if (cb.checked) selected.push(cb.dataset.world); });
-                STATE.worldState.selectedWorlds = selected;
+                // 合法性过滤
+                const validWorlds = await getAllWorlds();
+                const validSelected = selected.filter(w => validWorlds.includes(w));
+                STATE.worldState.selectedWorlds = validSelected;
                 STATE.saveWorldState();
-                STATE.showFloatingWarning(`已保存 ${selected.length} 个世界书`, false);
+                STATE.showFloatingWarning(`已保存 ${validSelected.length} 个世界书`, false);
             });
         }
 
-        // 其余事件绑定（API设置、引擎设置等）
+        // 其他事件绑定
         document.querySelectorAll('input[name="apiMode"]').forEach(r => r.addEventListener('change', (e) => {
             document.getElementById('htyq-custom-settings').style.display = e.target.value === 'custom' ? 'block' : 'none';
         }));
@@ -323,7 +424,6 @@ window.HTYQ_UI = (function() {
             </div>
         `;
 
-        // 绑定手动推演按钮
         const evolveBtn = document.getElementById('htyq-evolve-btn');
         if (evolveBtn) {
             evolveBtn.addEventListener('click', () => {
@@ -335,7 +435,6 @@ window.HTYQ_UI = (function() {
             });
         }
 
-        // 标签页切换
         const tabBtns = container.querySelectorAll('.htyq-tab-btn');
         const views = container.querySelectorAll('.htyq-view');
         const mobileSelect = container.querySelector('#htyq-tab-select');
@@ -349,7 +448,6 @@ window.HTYQ_UI = (function() {
         tabBtns.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
         if (mobileSelect) mobileSelect.addEventListener('change', (e) => switchTab(e.target.value));
 
-        // 移动端适配
         function adjustForMobile() {
             const isM = window.innerWidth < 768;
             const btnDiv = container.querySelector('.htyq-tab-buttons');
