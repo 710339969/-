@@ -6,13 +6,11 @@
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
                      ('ontouchstart' in window && window.matchMedia("(pointer: coarse)").matches);
 
-    // 创建悬浮球
     const globe = document.createElement('div');
     globe.className = 'st-floating-globe';
     globe.innerHTML = '<span class="st-globe-icon">🌐</span>';
     document.body.appendChild(globe);
 
-    // 创建面板
     const panel = document.createElement('div');
     panel.className = 'st-floating-panel';
     panel.innerHTML = `
@@ -21,9 +19,7 @@
             <button class="st-panel-close" aria-label="关闭">✕</button>
         </div>
         <div class="st-panel-content" id="htyq-panel-content">
-            <div style="padding: 20px; text-align: center; color: #aaa;">
-                ⏳ 加载引擎模块中...
-            </div>
+            <div style="padding: 20px; text-align: center; color: #aaa;">⏳ 加载引擎模块中...</div>
         </div>
     `;
     document.body.appendChild(panel);
@@ -68,6 +64,10 @@
     }
 
     function initPanel() {
+        if (window.innerWidth > 768) {
+            panel.style.width = '640px';
+            panel.style.height = '700px';
+        }
         const w = panel.offsetWidth, h = panel.offsetHeight;
         const defaultLeft = Math.max(20, (window.innerWidth - w) / 2);
         const defaultTop = Math.max(20, (window.innerHeight - h) / 2);
@@ -199,48 +199,21 @@
             document.addEventListener('click', outsideClickListener);
             document.addEventListener('touchstart', outsideClickListener);
         }
-        // 每次打开面板时，如果引擎未加载则加载
-        if (!window.__HTYQ_ENGINE_LOADED__) {
-            loadEngineModules();
-        }
+        if (!window.__HTYQ_ENGINE_LOADED__) loadEngineModules();
     }
 
-    function togglePanel() {
-        panelVisible ? closePanel() : openPanel();
-    }
+    function togglePanel() { panelVisible ? closePanel() : openPanel(); }
+    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closePanel(); });
 
-    closeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        closePanel();
-    });
-
-    // 动态加载引擎模块
     function loadEngineModules() {
         const baseUrl = getScriptBaseUrl();
-        const modules = [
-            'htyq-rules.js',
-            'htyq-state.js',
-            'htyq-ui.js',
-            'htyq-evolution.js'
-        ];
+        const modules = ['htyq-rules.js', 'htyq-state.js', 'htyq-ui.js', 'htyq-evolution.js'];
         let loadedCount = 0;
-        let errors = [];
         function onModuleLoaded() {
             loadedCount++;
             if (loadedCount === modules.length) {
-                // 所有模块加载完成后，构建UI并启动推演
-                if (window.HTYQ_UI && window.HTYQ_UI.buildUI) {
-                    window.HTYQ_UI.buildUI();
-                    console.log('活体引擎UI已构建');
-                } else {
-                    console.error('UI模块未正确加载');
-                    document.getElementById('htyq-panel-content').innerHTML = '<div style="padding:20px;color:red;">UI模块加载失败，请刷新页面重试。</div>';
-                }
-                if (window.HTYQ_EVOLUTION && window.HTYQ_EVOLUTION.start) {
-                    window.HTYQ_EVOLUTION.start();
-                } else {
-                    console.warn('推演模块未正确加载，手动推演可能不可用');
-                }
+                if (window.HTYQ_UI && window.HTYQ_UI.buildUI) window.HTYQ_UI.buildUI();
+                if (window.HTYQ_EVOLUTION && window.HTYQ_EVOLUTION.start) window.HTYQ_EVOLUTION.start();
                 window.__HTYQ_ENGINE_LOADED__ = true;
             }
         }
@@ -248,11 +221,7 @@
             const script = document.createElement('script');
             script.src = baseUrl + '/' + module;
             script.onload = onModuleLoaded;
-            script.onerror = () => {
-                console.error(`加载模块失败: ${module}`);
-                errors.push(module);
-                document.getElementById('htyq-panel-content').innerHTML = `<div style="padding:20px;color:red;">加载模块 ${module} 失败，请检查文件是否存在。</div>`;
-            };
+            script.onerror = () => { console.error(`加载模块失败: ${module}`); };
             document.head.appendChild(script);
         });
     }
@@ -261,12 +230,9 @@
         const scripts = document.getElementsByTagName('script');
         for (let i = 0; i < scripts.length; i++) {
             const src = scripts[i].src;
-            if (src && src.includes('main.js')) {
-                return src.substring(0, src.lastIndexOf('/'));
-            }
+            if (src && src.includes('main.js')) return src.substring(0, src.lastIndexOf('/'));
         }
-        // 如果自动获取失败，请手动修改为您的插件实际路径（相对于根目录）
-        return './plugins/floating-globe-panel';  // 请修改为实际文件夹名
+        return './plugins/floating-globe-panel';
     }
 
     initGlobe();
