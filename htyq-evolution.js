@@ -1,4 +1,4 @@
-// 推演核心模块 - 修复推演空白，增加详细日志和错误提示
+// 推演核心模块 - 完整修复版
 window.HTYQ_EVOLUTION = (function() {
     const STATE = window.HTYQ_STATE;
     const RULES = window.HTYQ_RULES;
@@ -32,7 +32,7 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) { console.warn(e); }
     }
 
-    // 根据世界书名称获取内容（从 entries 中筛选）
+    // 根据世界书名称获取内容（从已激活条目中筛选）
     function getWorldContentByNames(worldNames) {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
@@ -68,7 +68,7 @@ window.HTYQ_EVOLUTION = (function() {
                     if (scenario) worldContext += `初始场景：${scenario.substring(0, 800)}\n`;
                 }
             }
-        } catch(e) { console.warn('角色卡获取失败', e); }
+        } catch(e) { console.warn(e); }
 
         // 世界书内容
         let worldContent = '';
@@ -99,21 +99,35 @@ window.HTYQ_EVOLUTION = (function() {
         return `${rules}\n${worldContext}\n当前世界状态：\n轮次：${s.round}\n世界摘要：${s.worldDigest}\n星象：${s.astrology}\n事件链：${JSON.stringify(s.events.slice(0,5))}\n团体：${JSON.stringify(s.factions.slice(0,5))}\n流言：${JSON.stringify(s.rumors.slice(0,5))}\n声誉：${JSON.stringify(s.reputation)}\n金币：${s.economy.userGold}\n请根据上述角色设定和世界书，推演世界新状态，以JSON格式返回，必须包含字段：world_digest, astrology, reputation(四个维度), rumors(数组), events(数组), factions(数组), faction_relations(数组), economy(包含userGold变化和marketTrend), blackMarket(数组), active_contact(可选), accidents(数组)。只返回JSON，不要有其他文字。`;
     }
 
-    // ========== 应用推演结果（增加非空校验） ==========
+    // ========== 应用推演结果（加强校验） ==========
     function applyEvolution(data) {
         if (!data || typeof data !== 'object') {
             console.error('推演数据无效:', data);
-            STATE.showFloatingWarning('推演返回数据无效，请重试', true);
+            STATE.showFloatingWarning('推演返回数据无效，请检查模型输出', true);
             return false;
         }
         const s = STATE.worldState;
         let changed = false;
-        if (data.world_digest) { s.worldDigest = data.world_digest; changed = true; }
-        if (data.astrology) { s.astrology = data.astrology; changed = true; }
-        if (data.reputation) { s.reputation = { ...s.reputation, ...data.reputation }; changed = true; }
-        if (data.rumors && Array.isArray(data.rumors)) { s.rumors = [...data.rumors, ...s.rumors].slice(0, 30); changed = true; }
-        if (data.events && Array.isArray(data.events)) {
+
+        if (data.world_digest && typeof data.world_digest === 'string') {
+            s.worldDigest = data.world_digest;
+            changed = true;
+        }
+        if (data.astrology && typeof data.astrology === 'string') {
+            s.astrology = data.astrology;
+            changed = true;
+        }
+        if (data.reputation && typeof data.reputation === 'object') {
+            s.reputation = { ...s.reputation, ...data.reputation };
+            changed = true;
+        }
+        if (Array.isArray(data.rumors) && data.rumors.length) {
+            s.rumors = [...data.rumors, ...s.rumors].slice(0, 30);
+            changed = true;
+        }
+        if (Array.isArray(data.events)) {
             for (const e of data.events) {
+                if (!e.name) continue;
                 const existing = s.events.find(ev => ev.name === e.name);
                 if (existing) Object.assign(existing, e);
                 else s.events.unshift(e);
@@ -121,8 +135,9 @@ window.HTYQ_EVOLUTION = (function() {
             s.events = s.events.slice(0, 20);
             changed = true;
         }
-        if (data.factions && Array.isArray(data.factions)) {
+        if (Array.isArray(data.factions)) {
             for (const f of data.factions) {
+                if (!f.name) continue;
                 const existing = s.factions.find(fa => fa.name === f.name);
                 if (existing) Object.assign(existing, f);
                 else s.factions.unshift(f);
@@ -130,8 +145,9 @@ window.HTYQ_EVOLUTION = (function() {
             s.factions = s.factions.slice(0, 15);
             changed = true;
         }
-        if (data.faction_relations && Array.isArray(data.faction_relations)) {
+        if (Array.isArray(data.faction_relations)) {
             for (const r of data.faction_relations) {
+                if (!r.factionA || !r.factionB) continue;
                 const existing = s.factionRelations.find(rel => rel.factionA === r.factionA && rel.factionB === r.factionB);
                 if (existing) Object.assign(existing, r);
                 else s.factionRelations.unshift(r);
@@ -140,12 +156,20 @@ window.HTYQ_EVOLUTION = (function() {
             changed = true;
         }
         if (data.economy) {
-            if (data.economy.userGold !== undefined) s.economy.userGold += data.economy.userGold;
-            if (data.economy.marketTrend) s.economy.marketTrend = data.economy.marketTrend;
+            if (typeof data.economy.userGold === 'number') {
+                s.economy.userGold += data.economy.userGold;
+                changed = true;
+            }
+            if (data.economy.marketTrend) {
+                s.economy.marketTrend = data.economy.marketTrend;
+                changed = true;
+            }
+        }
+        if (Array.isArray(data.blackMarket)) {
+            s.blackMarket = [...s.blackMarket, ...data.blackMarket].slice(0, 15);
             changed = true;
         }
-        if (data.blackMarket && Array.isArray(data.blackMarket)) { s.blackMarket = [...s.blackMarket, ...data.blackMarket].slice(0, 15); changed = true; }
-        if (data.accidents && Array.isArray(data.accidents)) {
+        if (Array.isArray(data.accidents)) {
             for (const acc of data.accidents) {
                 if (acc.level === '重度' || acc.level === '中度') {
                     triggerEnvironmentVFX(acc.level);
@@ -155,8 +179,8 @@ window.HTYQ_EVOLUTION = (function() {
             changed = true;
         }
         if (!changed) {
-            console.warn('推演未产生任何变化，AI可能返回空数据');
-            STATE.showFloatingWarning('推演未产生变化，请检查模型返回内容', true);
+            console.warn('推演未产生任何有效数据更新', data);
+            STATE.showFloatingWarning('推演返回数据无有效变更，请检查模型输出', true);
             return false;
         }
         STATE.addChronicle('world_summary', `第${s.round + 1}轮推演`, s.worldDigest.substring(0, 200));
@@ -238,7 +262,7 @@ window.HTYQ_EVOLUTION = (function() {
             const evolutionData = JSON.parse(jsonStr);
             console.log('解析后的数据:', evolutionData);
             const success = applyEvolution(evolutionData);
-            if (!success) throw new Error('应用数据失败，可能数据为空');
+            if (!success) throw new Error('应用数据失败');
             STATE.worldState.round++;
             STATE.saveWorldState();
             if (window.HTYQ_UI && window.HTYQ_UI.refresh) window.HTYQ_UI.refresh();
