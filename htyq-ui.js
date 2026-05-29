@@ -1,4 +1,4 @@
-// UI 渲染模块 - 完整修复版（世界书列表 + 详细面板展示）
+// UI 渲染模块 - 最终修复版（世界书列表 + 详细面板展示）
 window.HTYQ_UI = (function() {
     const STATE = window.HTYQ_STATE;
     if (!STATE) { console.error('HTYQ_STATE 未加载'); return {}; }
@@ -7,30 +7,34 @@ window.HTYQ_UI = (function() {
     let isEditing = false;
     function escapeHtml(str) { return STATE.escapeHtml(str); }
 
-    // 【修复】正确获取世界书列表（优先使用 worldInfoManager，降级 API）
+    // 正确获取世界书列表（优先 API，降级 worldInfoManager）
     async function getAllWorlds() {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
-            // 方法1：worldInfoManager (SillyTavern 1.12+)
-            if (ctx.worldInfoManager && typeof ctx.worldInfoManager.getWorlds === 'function') {
-                const worlds = await ctx.worldInfoManager.getWorlds();
-                return worlds.map(w => w.name || w);
-            }
-            if (ctx.worldInfoManager && ctx.worldInfoManager.worlds) {
-                return Object.keys(ctx.worldInfoManager.worlds);
-            }
-            // 方法2：从已激活条目中提取（降级）
-            if (ctx.worldInfo && ctx.worldInfo.entries) {
-                const worlds = new Set();
-                ctx.worldInfo.entries.forEach(entry => { if (entry.world) worlds.add(entry.world); });
-                return Array.from(worlds);
-            }
-            // 方法3：API 请求
-            const res = await fetch('/api/worlds/all', { credentials: 'include' });
+            // 尝试官方 API /api/worlds
+            const res = await fetch('/api/worlds', { credentials: 'include' });
             if (res.ok) {
                 const data = await res.json();
                 if (Array.isArray(data)) return data;
                 if (data.worlds && Array.isArray(data.worlds)) return data.worlds;
+            }
+            // 降级：worldInfoManager
+            if (ctx.worldInfoManager) {
+                if (typeof ctx.worldInfoManager.getWorlds === 'function') {
+                    const worlds = await ctx.worldInfoManager.getWorlds();
+                    if (worlds && worlds.length) return worlds.map(w => w.name || w);
+                }
+                if (ctx.worldInfoManager.worlds) {
+                    const worlds = ctx.worldInfoManager.worlds;
+                    if (typeof worlds === 'object') return Object.keys(worlds);
+                    if (Array.isArray(worlds)) return worlds.map(w => w.name || w);
+                }
+            }
+            // 最后降级：从已激活条目提取
+            if (ctx.worldInfo && ctx.worldInfo.entries) {
+                const worlds = new Set();
+                ctx.worldInfo.entries.forEach(entry => { if (entry.world) worlds.add(entry.world); });
+                return Array.from(worlds);
             }
             return [];
         } catch(e) {
@@ -303,7 +307,6 @@ window.HTYQ_UI = (function() {
             });
         }
 
-        // 其他事件绑定
         document.querySelectorAll('input[name="apiMode"]').forEach(r => r.addEventListener('change', (e) => {
             document.getElementById('htyq-custom-settings').style.display = e.target.value === 'custom' ? 'block' : 'none';
         }));
