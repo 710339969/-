@@ -63,9 +63,9 @@
 /* PC端面板默认大小 */
 @media (min-width: 769px) {
     .st-floating-panel {
-        width: 640px !important;
-        height: 700px !important;
-        min-width: 560px;
+        width: 540px !important;
+        height: 600px !important;
+        min-width: 400px;
         min-height: 500px;
     }
 }
