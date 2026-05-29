@@ -1,35 +1,29 @@
-// 悬浮地球面板 - 稳定版（仅拖拽和空白面板）
+// 悬浮地球面板 + 活体引擎 - 稳定占位版
 (function() {
     if (window.__FLOATING_GLOBE_LOADED__) return;
     window.__FLOATING_GLOBE_LOADED__ = true;
 
+    // ======================== 原有拖拽面板逻辑 ========================
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
                      ('ontouchstart' in window && window.matchMedia("(pointer: coarse)").matches);
 
-    // 创建悬浮球
     const globe = document.createElement('div');
     globe.className = 'st-floating-globe';
     globe.innerHTML = '<span class="st-globe-icon">🌐</span>';
     document.body.appendChild(globe);
 
-    // 创建面板
     const panel = document.createElement('div');
     panel.className = 'st-floating-panel';
     panel.innerHTML = `
         <div class="st-panel-header">
-            <span class="st-panel-title">📋 空白面板</span>
+            <span class="st-panel-title">📋 活体世界引擎</span>
             <button class="st-panel-close" aria-label="关闭">✕</button>
         </div>
-        <div class="st-panel-content" id="st-panel-content">
-            <p style="text-align: center; color: var(--SmartThemeHintColor, #aaa);">
-                ⏳ 加载活体引擎中...
-            </p>
-        </div>
+        <div class="st-panel-content" id="htyq-panel-content"></div>
     `;
     document.body.appendChild(panel);
     const closeBtn = panel.querySelector('.st-panel-close');
 
-    // 位置存储 key
     const STORAGE_KEY_GLOBE = 'st_floating_globe_pos';
     const STORAGE_KEY_PANEL = 'st_floating_panel_pos';
 
@@ -200,10 +194,6 @@
             document.addEventListener('click', outsideClickListener);
             document.addEventListener('touchstart', outsideClickListener);
         }
-        // 每次打开面板时，如果引擎未加载则动态加载
-        if (!window.__HTYQ_ENGINE_LOADED__) {
-            loadHtyqEngine();
-        }
     }
 
     function togglePanel() {
@@ -215,22 +205,34 @@
         closePanel();
     });
 
-    // 动态加载活体引擎脚本
-    function loadHtyqEngine() {
-        if (document.getElementById('htyq-engine-script')) return;
-        const script = document.createElement('script');
-        script.id = 'htyq-engine-script';
-        script.src = 'plugins/您的插件文件夹名/htyq-engine.js';  // 请修改为实际路径
-        script.onload = () => console.log('活体引擎加载成功');
-        script.onerror = (err) => {
-            console.error('活体引擎加载失败', err);
-            const contentDiv = document.getElementById('st-panel-content');
-            if (contentDiv) contentDiv.innerHTML = '<p style="color:red;">活体引擎加载失败，请检查控制台错误。</p>';
-        };
-        document.head.appendChild(script);
-    }
-
     initGlobe();
     initPanel();
     panel.style.display = 'none';
+
+    // ======================== 活体引擎占位内容 ========================
+    // 确保面板打开时显示内容
+    function showEnginePlaceholder() {
+        const contentDiv = document.getElementById('htyq-panel-content');
+        if (contentDiv && contentDiv.innerHTML.trim() === '') {
+            contentDiv.innerHTML = `
+                <div style="padding:20px; text-align:center;">
+                    <h3>🌍 活体引擎即将上线</h3>
+                    <p>完整版本正在准备中...</p>
+                    <button id="test-btn" style="background:#3b82f6; color:white; border:none; padding:8px 16px; border-radius:6px; margin-top:10px;">测试交互</button>
+                </div>
+            `;
+            document.getElementById('test-btn')?.addEventListener('click', () => alert('悬浮球拖拽功能正常，引擎占位运行中'));
+        }
+    }
+
+    // 监听面板打开
+    const originalOpenPanel = openPanel;
+    window.openPanel = openPanel;
+    openPanel = function() {
+        originalOpenPanel();
+        setTimeout(showEnginePlaceholder, 50);
+    };
+    // 覆盖全局引用
+    window.openPanel = openPanel;
+    showEnginePlaceholder();
 })();
