@@ -1,4 +1,4 @@
-// UI 渲染模块 - 完整修复版（修复流言显示、实现完整渲染、世界书列表本地获取）
+// UI 渲染模块 - 完整修复版（世界书列表 + 详细面板展示）
 window.HTYQ_UI = (function() {
     const STATE = window.HTYQ_STATE;
     if (!STATE) { console.error('HTYQ_STATE 未加载'); return {}; }
@@ -7,16 +7,32 @@ window.HTYQ_UI = (function() {
     let isEditing = false;
     function escapeHtml(str) { return STATE.escapeHtml(str); }
 
-    // 【修复】直接通过 context.worldInfo.entries 获取世界书列表（无需 HTTP 请求）
+    // 【修复】正确获取世界书列表（优先使用 worldInfoManager，降级 API）
     async function getAllWorlds() {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
-            const entries = ctx.worldInfo?.entries || [];
-            const worlds = new Set();
-            for (const entry of entries) {
-                if (entry.world) worlds.add(entry.world);
+            // 方法1：worldInfoManager (SillyTavern 1.12+)
+            if (ctx.worldInfoManager && typeof ctx.worldInfoManager.getWorlds === 'function') {
+                const worlds = await ctx.worldInfoManager.getWorlds();
+                return worlds.map(w => w.name || w);
             }
-            return Array.from(worlds);
+            if (ctx.worldInfoManager && ctx.worldInfoManager.worlds) {
+                return Object.keys(ctx.worldInfoManager.worlds);
+            }
+            // 方法2：从已激活条目中提取（降级）
+            if (ctx.worldInfo && ctx.worldInfo.entries) {
+                const worlds = new Set();
+                ctx.worldInfo.entries.forEach(entry => { if (entry.world) worlds.add(entry.world); });
+                return Array.from(worlds);
+            }
+            // 方法3：API 请求
+            const res = await fetch('/api/worlds/all', { credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) return data;
+                if (data.worlds && Array.isArray(data.worlds)) return data.worlds;
+            }
+            return [];
         } catch(e) {
             console.warn('获取世界书列表失败', e);
             return [];
@@ -35,15 +51,20 @@ window.HTYQ_UI = (function() {
         return [];
     }
 
-    // ---------- 渲染函数（完整实现）----------
+    // ========== 详细渲染函数 ==========
     function renderDashboard(container) {
         const s = STATE.worldState;
         container.innerHTML = `
+            <div class="htyq-card"><h3>⏰ 时间</h3><div>${escapeHtml(s.worldTime || '未知')}</div></div>
             <div class="htyq-card"><h3>🌍 世界状态摘要</h3><div class="htyq-digest">${escapeHtml(s.worldDigest)}</div></div>
-            <div class="htyq-card"><h3>⭐ 星象分野</h3><div>${escapeHtml(s.astrology)}</div></div>
+            <div class="htyq-card"><h3>📌 整体氛围</h3><div>${escapeHtml(s.overallAtmosphere)} | 驱动事件: ${escapeHtml(s.drivingEvent)}</div></div>
+            <div class="htyq-card"><h3>👁️ 直接接触层</h3><div>${escapeHtml(s.directLayer)}</div></div>
+            <div class="htyq-card"><h3>🏘️ 近距离层</h3><div>${escapeHtml(s.nearLayer)}</div></div>
+            <div class="htyq-card"><h3>🌄 远距离层</h3><div>${escapeHtml(s.farLayer)}</div></div>
             <div class="htyq-card"><h3>🔥 活跃事件链</h3><ul>${s.events.slice(0,3).map(e => `<li>【${escapeHtml(e.name)}】${escapeHtml(e.stage || '萌芽')} (${e.currentRound || 0}/${e.totalRounds || 0}轮)</li>`).join('') || '<li>无</li>'}</ul></div>
             <div class="htyq-card"><h3>🗣️ 最新流言</h3><ul>${s.rumors.slice(0,3).map(r => `<li>${escapeHtml((r.content || r.text || '')).substring(0,80)}...</li>`).join('') || '<li>无</li>'}</ul></div>
-            <div class="htyq-card"><h3>💰 经济趋势</h3><div>${escapeHtml(s.economy.marketTrend)}</div></div>
+            <div class="htyq-card"><h3>📅 即将发生的日程</h3><ul>${s.upcomingSchedules.map(u => `<li>${escapeHtml(u.time)}：${escapeHtml(u.event)} → ${escapeHtml(u.involved)}</li>`).join('') || '<li>无</li>'}</ul></div>
+            <div class="htyq-card"><h3>🎲 随机事件</h3><ul>${s.randomEvents.map(r => `<li>${escapeHtml(r.description)}</li>`).join('') || '<li>无</li>'}</ul></div>
             <div class="htyq-card"><h3>⭐ 声誉</h3><div>江湖:${s.reputation.jianghu} 官府:${s.reputation.official} 民间:${s.reputation.folk} 黑道:${s.reputation.underworld}</div></div>
         `;
     }
@@ -90,7 +111,8 @@ window.HTYQ_UI = (function() {
                 目标: ${escapeHtml(f.current_goal || '无')}<br>
                 进度: ${escapeHtml(f.progress || '未知')}<br>
                 凝聚力: ${escapeHtml(f.cohesion || '未知')} | 资源: ${escapeHtml(f.resources || '未知')}<br>
-                对主角关注: ${escapeHtml(f.attention_to_user || '无')}
+                对主角关注: ${escapeHtml(f.attention_to_user || '无')}<br>
+                核心人物: ${escapeHtml(f.core_character || '无')}
             </div>
         `).join('');
     }
@@ -163,7 +185,6 @@ window.HTYQ_UI = (function() {
         `;
     }
 
-    // 设置页面（保持不变，但内部 getAllWorlds 已修复）
     function renderSettings(container) {
         const set = STATE.globalApiSettings;
         const worldState = STATE.worldState;
@@ -274,7 +295,6 @@ window.HTYQ_UI = (function() {
                 const checkboxes = document.querySelectorAll('#htyq-worlds-list input[type="checkbox"]');
                 const selected = [];
                 checkboxes.forEach(cb => { if (cb.checked) selected.push(cb.dataset.world); });
-                // 合法性过滤
                 const validWorlds = await getAllWorlds();
                 const validSelected = selected.filter(w => validWorlds.includes(w));
                 STATE.worldState.selectedWorlds = validSelected;
