@@ -1,4 +1,4 @@
-// 状态管理模块 - 完整修复版（支持详细面板字段）
+// 状态管理模块 - 完整版（包含所有面板字段）
 window.HTYQ_STATE = (function() {
     const DEFAULT_DLCS = {
         world_engine: true,
@@ -25,7 +25,7 @@ window.HTYQ_STATE = (function() {
             factionRelations: [],
             rumors: [],
             reputation: { jianghu: '默默无闻', official: '默默无闻', folk: '默默无闻', underworld: '默默无闻' },
-            economy: { userGold: 1000, userAssets: [], marketTrend: '平稳', keyResources: [] },
+            economy: { userGold: 1000, userAssets: [], marketTrend: '平稳', keyResources: [], fundsStatus: '勉强糊口', economyVisibility: { behavior: '', visible: false, witnesses: [], rumorGenerated: false } },
             blackMarket: [],
             secretBox: { actions: [], assets: [] },
             accidentCooldown: 0,
@@ -33,7 +33,7 @@ window.HTYQ_STATE = (function() {
             breaker: 0,
             autoBindCharacterWorld: true,
             selectedWorlds: [],
-            // ========== 新增详细面板字段 ==========
+            // 详细面板字段
             worldTime: '',
             overallAtmosphere: '',
             drivingEvent: '',
@@ -48,7 +48,17 @@ window.HTYQ_STATE = (function() {
             causalChain: [],
             randomEvents: [],
             powerPeaks: [],
-            internalMessages: []
+            internalMessages: [],
+            // 新增缺失模块
+            characterStates: [],          // 已出场角色状态 [{ name, importance, status, emotion, attitudeToUser, relationshipMap }]
+            diplomaticEvents: [],         // 本轮外交事件
+            pendingEvents: [],            // 待爆发事件链（可自动计算，但保留字段）
+            pendingForeshadowing: [],     // 待回收伏笔
+            keyValuesMemo: '',            // 关键数值备忘
+            roundFocus: '',               // 本轮重点
+            crossRegionMemo: '',          // 跨区域角色备忘
+            bloodFeudMemo: '',            // 血仇备忘
+            reputationChange: ''          // 声誉本轮变化原因
         };
     }
 
@@ -88,22 +98,13 @@ window.HTYQ_STATE = (function() {
                 const parsed = JSON.parse(stored);
                 worldState = { ...getDefaultWorldState(), ...parsed };
                 // 确保新字段存在
-                worldState.worldTime = worldState.worldTime || '';
-                worldState.overallAtmosphere = worldState.overallAtmosphere || '';
-                worldState.drivingEvent = worldState.drivingEvent || '';
-                worldState.citizenMood = worldState.citizenMood || '';
-                worldState.securityStatus = worldState.securityStatus || '';
-                worldState.directLayer = worldState.directLayer || '';
-                worldState.nearLayer = worldState.nearLayer || '';
-                worldState.farLayer = worldState.farLayer || '';
-                worldState.upcomingSchedules = worldState.upcomingSchedules || [];
-                worldState.recentActions = worldState.recentActions || [];
-                worldState.memorySummary = worldState.memorySummary || '';
-                worldState.causalChain = worldState.causalChain || [];
-                worldState.randomEvents = worldState.randomEvents || [];
-                worldState.powerPeaks = worldState.powerPeaks || [];
-                worldState.internalMessages = worldState.internalMessages || [];
-                worldState.secretBox = worldState.secretBox || { actions: [], assets: [] };
+                const defaults = getDefaultWorldState();
+                for (let key in defaults) {
+                    if (worldState[key] === undefined) worldState[key] = defaults[key];
+                }
+                // 确保子对象结构
+                if (!worldState.economy.economyVisibility) worldState.economy.economyVisibility = defaults.economy.economyVisibility;
+                if (!worldState.economy.fundsStatus) worldState.economy.fundsStatus = defaults.economy.fundsStatus;
             } catch(e) { worldState = getDefaultWorldState(); }
         } else {
             worldState = getDefaultWorldState();
