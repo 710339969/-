@@ -1,4 +1,4 @@
-// 状态管理模块 - 完整版
+// 状态管理模块 - 支持世界书绑定模式
 window.HTYQ_STATE = (function() {
     const DEFAULT_DLCS = {
         world_engine: true,
@@ -31,7 +31,9 @@ window.HTYQ_STATE = (function() {
             accidentCooldown: 0,
             noContactCounter: 0,
             breaker: 0,
-            selectedWorldInfoEntries: []   // 存储选中的世界书条目 uid 列表
+            // 世界书绑定
+            autoBindCharacterWorld: true,    // true: 自动跟随角色卡绑定的世界书; false: 手动选择
+            selectedWorlds: []               // 手动模式下选中的世界书名称数组
         };
     }
 
@@ -79,7 +81,8 @@ window.HTYQ_STATE = (function() {
                 worldState.secretBox = worldState.secretBox || { actions: [], assets: [] };
                 worldState.reputation = worldState.reputation || getDefaultWorldState().reputation;
                 worldState.economy = worldState.economy || getDefaultWorldState().economy;
-                worldState.selectedWorldInfoEntries = worldState.selectedWorldInfoEntries || [];
+                worldState.selectedWorlds = worldState.selectedWorlds || [];
+                if (worldState.autoBindCharacterWorld === undefined) worldState.autoBindCharacterWorld = true;
             } catch(e) { worldState = getDefaultWorldState(); }
         } else {
             worldState = getDefaultWorldState();
