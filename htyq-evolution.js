@@ -1,4 +1,4 @@
-// 推演核心模块 - 完整修复版（修复重试逻辑 & active_contact 变更标记）
+// 推演核心模块 - 完整修复版（重试逻辑修复 + 详细推演 + 世界书API获取）
 window.HTYQ_EVOLUTION = (function() {
     const STATE = window.HTYQ_STATE;
     const RULES = window.HTYQ_RULES;
@@ -32,56 +32,77 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) { console.warn(e); }
     }
 
-    function getWorldContentByNames(worldNames) {
+    // 【修复】通过 API 获取指定世界书的完整内容（包括未激活条目）
+    async function fetchWorldContent(worldName) {
         try {
-            const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
-            const allEntries = ctx.worldInfo?.entries || [];
-            const selectedEntries = allEntries.filter(entry => worldNames.includes(entry.world));
-            let content = '';
-            for (const entry of selectedEntries) {
-                content += `【${entry.comment || '世界设定'}】${entry.content}\n`;
+            const res = await fetch('/api/worldinfo/get', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name: worldName })
+            });
+            if (!res.ok) return '';
+            const data = await res.json();
+            if (data.entries && Array.isArray(data.entries)) {
+                return data.entries.map(entry => `【${entry.comment || '条目'}】${entry.content}`).join('\n');
             }
-            return content;
+            return '';
         } catch(e) { return ''; }
     }
 
-    function buildEvolutionPrompt() {
-        const rules = RULES.getFullSystemRules(STATE.globalApiSettings.enabledDlcs);
-        let worldContext = '';
+    async function getWorldContentByNames(worldNames) {
+        let combined = '';
+        for (const name of worldNames) {
+            const content = await fetchWorldContent(name);
+            if (content) combined += `\n【世界书：${name}】\n${content}\n`;
+        }
+        return combined;
+    }
 
+    async function getCharacterCardInfo() {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
             const charId = ctx.characterId;
-            if (charId) {
-                const characters = ctx.characters || [];
-                const char = characters.find(c => c.avatar === charId || c.id === charId);
-                if (char && char.data) {
-                    const desc = char.data.description || '';
-                    const personality = char.data.personality || '';
-                    const scenario = char.data.scenario || '';
-                    worldContext += `\n【当前角色卡设定】\n`;
-                    if (desc) worldContext += `角色描述：${desc.substring(0, 1500)}\n`;
-                    if (personality) worldContext += `性格：${personality.substring(0, 800)}\n`;
-                    if (scenario) worldContext += `初始场景：${scenario.substring(0, 800)}\n`;
-                }
-            }
-        } catch(e) { console.warn(e); }
+            if (!charId) return '';
+            const characters = ctx.characters || [];
+            const char = characters.find(c => c.avatar === charId || c.id === charId);
+            if (!char || !char.data) return '';
+            const desc = char.data.description || '';
+            const personality = char.data.personality || '';
+            const scenario = char.data.scenario || '';
+            return `\n【当前角色卡设定】\n角色描述：${desc.substring(0, 1500)}\n性格：${personality.substring(0, 800)}\n初始场景：${scenario.substring(0, 800)}\n`;
+        } catch(e) { return ''; }
+    }
 
-        let worldContent = '';
+    // 【增强】构建详细推演 Prompt
+    async function buildEvolutionPrompt() {
+        const rules = RULES.getFullSystemRules(STATE.globalApiSettings.enabledDlcs);
+        let worldContext = '';
+
+        // 角色卡信息
+        worldContext += await getCharacterCardInfo();
+
+        // 世界书内容
         const ws = STATE.worldState;
+        let worldContent = '';
         if (ws.autoBindCharacterWorld) {
+            // 自动模式：获取角色卡绑定的世界书
             try {
                 const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
                 const charId = ctx.characterId;
                 if (charId) {
                     const characters = ctx.characters || [];
                     const char = characters.find(c => c.avatar === charId || c.id === charId);
-                    if (char && char.world) worldContent = getWorldContentByNames([char.world]);
+                    if (char && char.world) {
+                        worldContent = await getWorldContentByNames([char.world]);
+                    }
                 }
             } catch(e) {}
         } else {
             const selected = ws.selectedWorlds || [];
-            if (selected.length) worldContent = getWorldContentByNames(selected);
+            if (selected.length) {
+                worldContent = await getWorldContentByNames(selected);
+            }
         }
         if (worldContent) {
             const maxChars = STATE.globalApiSettings.worldInfoMaxChars || 2000;
@@ -92,7 +113,8 @@ window.HTYQ_EVOLUTION = (function() {
         }
 
         const s = STATE.worldState;
-        return `${rules}\n${worldContext}\n当前世界状态：\n轮次：${s.round}\n世界摘要：${s.worldDigest}\n星象：${s.astrology}\n事件链：${JSON.stringify(s.events.slice(0,5))}\n团体：${JSON.stringify(s.factions.slice(0,5))}\n流言：${JSON.stringify(s.rumors.slice(0,5))}\n声誉：${JSON.stringify(s.reputation)}\n金币：${s.economy.userGold}\n请根据上述角色设定和世界书，推演世界新状态，以JSON格式返回，必须包含字段：world_digest, astrology, reputation(四个维度), rumors(数组), events(数组), factions(数组), faction_relations(数组), economy(包含userGold变化和marketTrend), blackMarket(数组), active_contact(可选), accidents(数组)。只返回JSON，不要有其他文字。`;
+        // 构建包含详细状态的面板上下文
+        return `${rules}\n${worldContext}\n当前世界状态：\n轮次：${s.round}\n时间：${s.worldTime || '未知'}\n世界摘要：${s.worldDigest}\n整体氛围：${s.overallAtmosphere}\n驱动事件：${s.drivingEvent}\n星象：${s.astrology}\n治安状况：${s.securityStatus}\n市民情绪：${s.citizenMood}\n直接接触层：${s.directLayer}\n近距离层：${s.nearLayer}\n远距离层：${s.farLayer}\n事件链：${JSON.stringify(s.events.slice(0,5))}\n团体：${JSON.stringify(s.factions.slice(0,5))}\n流言：${JSON.stringify(s.rumors.slice(0,5))}\n声誉：${JSON.stringify(s.reputation)}\n金币：${s.economy.userGold}\n即将发生的日程：${JSON.stringify(s.upcomingSchedules)}\n随机事件：${JSON.stringify(s.randomEvents)}\n请根据上述角色设定和世界书，推演世界新状态，以JSON格式返回，必须包含以下字段：\nworld_time, world_digest, overall_atmosphere, driving_event, citizen_mood, security_status, astrology, direct_layer, near_layer, far_layer, upcoming_schedules(数组，每个元素含time,event,involved,potentialImpact), reputation(四个维度), rumors(数组，每个对象含content,type,scope,credibility,source,impact), events(数组，每个对象含name,level,stage,currentRound,totalRounds,desc), factions(数组，每个对象含name,current_goal,progress,cohesion,resources,attention_to_user,core_character), faction_relations(数组，每个对象含factionA,factionB,relation,level,trend), economy(包含userGold变化, marketTrend, keyResources数组), blackMarket(数组，每个对象含type,description,price,method,risk), accidents(数组), active_contact(可选), recent_actions(数组，每个对象含action,noticedBy,consequence), memory_summary(字符串), causal_chain(数组，每个对象含rumorOrEvent,progress,manifestation), random_events(数组，每个对象含description,impact), power_peaks(数组，每个对象含name,group,title,personalGoal,pillars), internal_messages(数组，每个对象含source,group,relation,content,leadRounds), secret_box(对象，含actions数组,assets数组)。\n只返回JSON，不要有其他文字。`;
     }
 
     function applyEvolution(data) {
@@ -104,22 +126,13 @@ window.HTYQ_EVOLUTION = (function() {
         const s = STATE.worldState;
         let changed = false;
 
-        if (data.world_digest && typeof data.world_digest === 'string') {
-            s.worldDigest = data.world_digest;
-            changed = true;
-        }
-        if (data.astrology && typeof data.astrology === 'string') {
-            s.astrology = data.astrology;
-            changed = true;
-        }
-        if (data.reputation && typeof data.reputation === 'object') {
-            s.reputation = { ...s.reputation, ...data.reputation };
-            changed = true;
-        }
-        if (Array.isArray(data.rumors) && data.rumors.length) {
-            s.rumors = [...data.rumors, ...s.rumors].slice(0, 30);
-            changed = true;
-        }
+        // 基础字段
+        if (data.world_digest && typeof data.world_digest === 'string') { s.worldDigest = data.world_digest; changed = true; }
+        if (data.astrology && typeof data.astrology === 'string') { s.astrology = data.astrology; changed = true; }
+        if (data.reputation && typeof data.reputation === 'object') { s.reputation = { ...s.reputation, ...data.reputation }; changed = true; }
+        
+        // 数组字段
+        if (Array.isArray(data.rumors) && data.rumors.length) { s.rumors = [...data.rumors, ...s.rumors].slice(0, 30); changed = true; }
         if (Array.isArray(data.events)) {
             for (const e of data.events) {
                 if (!e.name) continue;
@@ -151,19 +164,11 @@ window.HTYQ_EVOLUTION = (function() {
             changed = true;
         }
         if (data.economy) {
-            if (typeof data.economy.userGold === 'number') {
-                s.economy.userGold += data.economy.userGold;
-                changed = true;
-            }
-            if (data.economy.marketTrend) {
-                s.economy.marketTrend = data.economy.marketTrend;
-                changed = true;
-            }
+            if (typeof data.economy.userGold === 'number') { s.economy.userGold += data.economy.userGold; changed = true; }
+            if (data.economy.marketTrend) { s.economy.marketTrend = data.economy.marketTrend; changed = true; }
+            if (Array.isArray(data.economy.keyResources)) { s.economy.keyResources = data.economy.keyResources; changed = true; }
         }
-        if (Array.isArray(data.blackMarket)) {
-            s.blackMarket = [...s.blackMarket, ...data.blackMarket].slice(0, 15);
-            changed = true;
-        }
+        if (Array.isArray(data.blackMarket)) { s.blackMarket = [...s.blackMarket, ...data.blackMarket].slice(0, 15); changed = true; }
         if (Array.isArray(data.accidents)) {
             for (const acc of data.accidents) {
                 if (acc.level === '重度' || acc.level === '中度') {
@@ -173,10 +178,26 @@ window.HTYQ_EVOLUTION = (function() {
             }
             changed = true;
         }
-        // 【修复】active_contact 也应视为有效变更
-        if (data.active_contact) {
-            changed = true;
-        }
+        if (data.active_contact) { changed = true; }  // 修复：标记变更
+
+        // 详细面板字段
+        if (data.world_time) { s.worldTime = data.world_time; changed = true; }
+        if (data.overall_atmosphere) { s.overallAtmosphere = data.overall_atmosphere; changed = true; }
+        if (data.driving_event) { s.drivingEvent = data.driving_event; changed = true; }
+        if (data.citizen_mood) { s.citizenMood = data.citizen_mood; changed = true; }
+        if (data.security_status) { s.securityStatus = data.security_status; changed = true; }
+        if (data.direct_layer) { s.directLayer = data.direct_layer; changed = true; }
+        if (data.near_layer) { s.nearLayer = data.near_layer; changed = true; }
+        if (data.far_layer) { s.farLayer = data.far_layer; changed = true; }
+        if (Array.isArray(data.upcoming_schedules)) { s.upcomingSchedules = data.upcoming_schedules; changed = true; }
+        if (Array.isArray(data.recent_actions)) { s.recentActions = data.recent_actions; changed = true; }
+        if (data.memory_summary) { s.memorySummary = data.memory_summary; changed = true; }
+        if (Array.isArray(data.causal_chain)) { s.causalChain = data.causal_chain; changed = true; }
+        if (Array.isArray(data.random_events)) { s.randomEvents = data.random_events; changed = true; }
+        if (Array.isArray(data.power_peaks)) { s.powerPeaks = data.power_peaks; changed = true; }
+        if (Array.isArray(data.internal_messages)) { s.internalMessages = data.internal_messages; changed = true; }
+        if (data.secret_box) { s.secretBox = { ...s.secretBox, ...data.secret_box }; changed = true; }
+
         if (!changed) {
             console.warn('推演未产生任何有效数据更新', data);
             STATE.showFloatingWarning('推演返回数据无有效变更，请检查模型输出', true);
@@ -222,11 +243,11 @@ window.HTYQ_EVOLUTION = (function() {
         floatingToast = null;
     }
 
-    // 【修复】重试逻辑：不再传递 retry 标志，仅基于 currentRetry
+    // 【修复】重试逻辑：不传递 retry 标志，仅基于 currentRetry
     async function attemptEvolution(manual) {
         const maxRetries = 3;
         try {
-            const prompt = buildEvolutionPrompt();
+            const prompt = await buildEvolutionPrompt();  // 注意 await
             console.log('推演 Prompt 长度:', prompt.length);
             let rawResult;
             const settings = STATE.globalApiSettings;
@@ -249,7 +270,7 @@ window.HTYQ_EVOLUTION = (function() {
             } else {
                 const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
                 if (!ctx.generateRaw) throw new Error('当前环境不支持 generateRaw');
-                rawResult = await ctx.generateRaw({ prompt, max_tokens: 2000, temperature: 0.8, should_stream: false });
+                rawResult = await ctx.generateRaw({ prompt, max_tokens: 3000, temperature: 0.8, should_stream: false });
                 if (typeof rawResult !== 'string') rawResult = rawResult.text || String(rawResult);
             }
             console.log('原始返回内容:', rawResult);
