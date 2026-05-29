@@ -1,4 +1,4 @@
-// 状态管理模块
+// 状态管理模块 - 完整版
 window.HTYQ_STATE = (function() {
     const DEFAULT_DLCS = {
         world_engine: true,
@@ -30,7 +30,8 @@ window.HTYQ_STATE = (function() {
             secretBox: { actions: [], assets: [] },
             accidentCooldown: 0,
             noContactCounter: 0,
-            breaker: 0
+            breaker: 0,
+            selectedWorldInfoEntries: []   // 存储选中的世界书条目 uid 列表
         };
     }
 
@@ -78,6 +79,7 @@ window.HTYQ_STATE = (function() {
                 worldState.secretBox = worldState.secretBox || { actions: [], assets: [] };
                 worldState.reputation = worldState.reputation || getDefaultWorldState().reputation;
                 worldState.economy = worldState.economy || getDefaultWorldState().economy;
+                worldState.selectedWorldInfoEntries = worldState.selectedWorldInfoEntries || [];
             } catch(e) { worldState = getDefaultWorldState(); }
         } else {
             worldState = getDefaultWorldState();
