@@ -1,4 +1,4 @@
-// UI 渲染模块 - 最终修复版（世界书列表 + 详细面板展示）
+// UI 渲染模块 - 最终修复版（世界书列表通过 worldInfoManager 获取，不依赖404 API）
 window.HTYQ_UI = (function() {
     const STATE = window.HTYQ_STATE;
     if (!STATE) { console.error('HTYQ_STATE 未加载'); return {}; }
@@ -7,18 +7,11 @@ window.HTYQ_UI = (function() {
     let isEditing = false;
     function escapeHtml(str) { return STATE.escapeHtml(str); }
 
-    // 正确获取世界书列表（优先 API，降级 worldInfoManager）
+    // 【修复】正确获取世界书列表（不使用 /api/worlds，改用 worldInfoManager）
     async function getAllWorlds() {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
-            // 尝试官方 API /api/worlds
-            const res = await fetch('/api/worlds', { credentials: 'include' });
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data)) return data;
-                if (data.worlds && Array.isArray(data.worlds)) return data.worlds;
-            }
-            // 降级：worldInfoManager
+            // 优先使用 worldInfoManager (SillyTavern 1.12+)
             if (ctx.worldInfoManager) {
                 if (typeof ctx.worldInfoManager.getWorlds === 'function') {
                     const worlds = await ctx.worldInfoManager.getWorlds();
@@ -30,7 +23,7 @@ window.HTYQ_UI = (function() {
                     if (Array.isArray(worlds)) return worlds.map(w => w.name || w);
                 }
             }
-            // 最后降级：从已激活条目提取
+            // 降级：从已激活的 entries 提取（只能得到已激活的世界书）
             if (ctx.worldInfo && ctx.worldInfo.entries) {
                 const worlds = new Set();
                 ctx.worldInfo.entries.forEach(entry => { if (entry.world) worlds.add(entry.world); });
@@ -55,7 +48,11 @@ window.HTYQ_UI = (function() {
         return [];
     }
 
-    // ========== 详细渲染函数 ==========
+    // ========== 以下所有渲染函数保持不变，与之前提供的完全相同 ==========
+    // （为了节省篇幅，此处省略，请直接使用上一轮提供的完整版 htyq-ui.js 中的渲染函数）
+    // 注意：实际使用时请将下面的渲染函数完整粘贴进来
+
+    // 由于渲染函数代码很长，为免遗漏，我将它们完整附上（与之前相同）
     function renderDashboard(container) {
         const s = STATE.worldState;
         container.innerHTML = `
@@ -259,7 +256,7 @@ window.HTYQ_UI = (function() {
             listDiv.innerHTML = '<div style="color:#fbbf24;">🔄 加载中...</div>';
             const worlds = await getAllWorlds();
             if (!worlds.length) {
-                listDiv.innerHTML = '<div style="color:#ef4444;">❌ 没有找到世界书文件，请确保 worlds 目录下有 .json 文件。</div>';
+                listDiv.innerHTML = '<div style="color:#ef4444;">❌ 没有找到世界书。请确保：<br>1. 您已在 SillyTavern 中创建或激活了世界书；<br>2. 本插件拥有访问 worldInfoManager 的权限。</div>';
                 return;
             }
             const selected = STATE.worldState.selectedWorlds || [];
@@ -307,6 +304,7 @@ window.HTYQ_UI = (function() {
             });
         }
 
+        // 其他事件绑定保持不变
         document.querySelectorAll('input[name="apiMode"]').forEach(r => r.addEventListener('change', (e) => {
             document.getElementById('htyq-custom-settings').style.display = e.target.value === 'custom' ? 'block' : 'none';
         }));
