@@ -199,7 +199,6 @@ window.HTYQ_EVOLUTION = (function() {
             // 处理主动接触
             if (evolutionData.active_contact) {
                 STATE.showFloatingWarning(`⚠️ 主动接触: ${evolutionData.active_contact.summary}`, true);
-                // 面板内红色警告
                 const dashboardView = document.getElementById('htyq-view-dashboard');
                 if (dashboardView && dashboardView.offsetParent !== null) {
                     const banner = document.createElement('div');
@@ -243,8 +242,10 @@ window.HTYQ_EVOLUTION = (function() {
         }
     }
 
-    // 自动推演相关（监听消息）
+    // 自动推演相关（使用事件监听，兼容不同环境）
     let autoPollCounter = 0;
+    let messageListenerAttached = false;
+
     function onMessageReceived() {
         const settings = STATE.globalApiSettings;
         if (settings.autoPollMode === 'auto') {
@@ -282,20 +283,34 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) {}
     }
 
-    // 注册事件（由外部调用，避免重复绑定）
+    // 注册事件（兼容 eventOn 或直接监听 ST 的 eventSource）
     let eventsBound = false;
     function bindEvents() {
         if (eventsBound) return;
+        // 优先使用 SillyTavern 的 eventSource
+        try {
+            const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
+            if (ctx && ctx.eventSource) {
+                ctx.eventSource.on('message_received', onMessageReceived);
+                ctx.eventSource.on('chat_loaded', onChatLoaded);
+                console.log('已绑定活体引擎事件到 eventSource');
+                eventsBound = true;
+                return;
+            }
+        } catch(e) {}
+        // 降级使用全局 eventOn（如果存在）
         if (typeof eventOn === 'function') {
             eventOn('message_received', onMessageReceived);
             eventOn('chat_loaded', onChatLoaded);
+            console.log('已绑定活体引擎事件到 eventOn');
             eventsBound = true;
-        } else {
-            console.warn('未找到 eventOn，自动推演和聊天切换功能不可用');
+            return;
         }
+        // 最后警告
+        console.warn('无法绑定自动推演事件，自动推演和聊天切换功能不可用，但手动推演正常');
     }
 
-    // 启动推演模块（加载设置、状态、绑定事件）
+    // 启动推演模块
     function start() {
         STATE.loadGlobalSettings();
         STATE.loadWorldState();
@@ -308,7 +323,6 @@ window.HTYQ_EVOLUTION = (function() {
     return {
         runEvolution: runEvolution,
         start: start,
-        // 以下为内部函数，暴露用于调试
         _buildPrompt: buildEvolutionPrompt,
         _applyEvolution: applyEvolution
     };
@@ -318,7 +332,6 @@ window.HTYQ_EVOLUTION = (function() {
 if (window.HTYQ_UI && window.HTYQ_UI.buildUI) {
     window.HTYQ_EVOLUTION.start();
 } else {
-    // 如果UI尚未加载，延迟启动
     const checkUI = setInterval(() => {
         if (window.HTYQ_UI && window.HTYQ_UI.buildUI) {
             clearInterval(checkUI);
