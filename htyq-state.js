@@ -1,4 +1,4 @@
-// 状态管理模块 - 支持世界书绑定模式
+// 状态管理模块 - 完整修复版（支持详细面板字段）
 window.HTYQ_STATE = (function() {
     const DEFAULT_DLCS = {
         world_engine: true,
@@ -31,9 +31,24 @@ window.HTYQ_STATE = (function() {
             accidentCooldown: 0,
             noContactCounter: 0,
             breaker: 0,
-            // 世界书绑定
-            autoBindCharacterWorld: true,    // true: 自动跟随角色卡绑定的世界书; false: 手动选择
-            selectedWorlds: []               // 手动模式下选中的世界书名称数组
+            autoBindCharacterWorld: true,
+            selectedWorlds: [],
+            // ========== 新增详细面板字段 ==========
+            worldTime: '',                 // 时间
+            overallAtmosphere: '',        // 整体氛围
+            drivingEvent: '',             // 驱动事件
+            citizenMood: '',              // 市民情绪
+            securityStatus: '',           // 治安状况
+            directLayer: '',              // 直接接触层
+            nearLayer: '',                // 近距离层
+            farLayer: '',                 // 远距离层
+            upcomingSchedules: [],        // 即将发生的日程
+            recentActions: [],            // 近期玩家行动记录
+            memorySummary: '',            // 剧情记忆摘要
+            causalChain: [],              // 因果链
+            randomEvents: [],             // 随机事件
+            powerPeaks: [],               // 权力顶点
+            internalMessages: []          // 内部消息
         };
     }
 
@@ -72,17 +87,23 @@ window.HTYQ_STATE = (function() {
             try {
                 const parsed = JSON.parse(stored);
                 worldState = { ...getDefaultWorldState(), ...parsed };
-                worldState.chronicles = worldState.chronicles || [];
-                worldState.events = worldState.events || [];
-                worldState.factions = worldState.factions || [];
-                worldState.factionRelations = worldState.factionRelations || [];
-                worldState.rumors = worldState.rumors || [];
-                worldState.blackMarket = worldState.blackMarket || [];
+                // 确保新字段存在
+                worldState.worldTime = worldState.worldTime || '';
+                worldState.overallAtmosphere = worldState.overallAtmosphere || '';
+                worldState.drivingEvent = worldState.drivingEvent || '';
+                worldState.citizenMood = worldState.citizenMood || '';
+                worldState.securityStatus = worldState.securityStatus || '';
+                worldState.directLayer = worldState.directLayer || '';
+                worldState.nearLayer = worldState.nearLayer || '';
+                worldState.farLayer = worldState.farLayer || '';
+                worldState.upcomingSchedules = worldState.upcomingSchedules || [];
+                worldState.recentActions = worldState.recentActions || [];
+                worldState.memorySummary = worldState.memorySummary || '';
+                worldState.causalChain = worldState.causalChain || [];
+                worldState.randomEvents = worldState.randomEvents || [];
+                worldState.powerPeaks = worldState.powerPeaks || [];
+                worldState.internalMessages = worldState.internalMessages || [];
                 worldState.secretBox = worldState.secretBox || { actions: [], assets: [] };
-                worldState.reputation = worldState.reputation || getDefaultWorldState().reputation;
-                worldState.economy = worldState.economy || getDefaultWorldState().economy;
-                worldState.selectedWorlds = worldState.selectedWorlds || [];
-                if (worldState.autoBindCharacterWorld === undefined) worldState.autoBindCharacterWorld = true;
             } catch(e) { worldState = getDefaultWorldState(); }
         } else {
             worldState = getDefaultWorldState();
