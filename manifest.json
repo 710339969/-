@@ -1,10 +1,10 @@
 {
-  "display_name": "🌐 悬浮地球面板",
+  "display_name": "🌐 悬浮地球面板 + 活体引擎",
   "author": "YourName",
-  "description": "可拖拽的地球悬浮球，点击打开可拖拽的空白面板，适配手机与电脑",
-  "version": "1.0.0",
+  "description": "可拖拽的地球悬浮球，点击打开活体世界引擎面板",
+  "version": "1.1.0",
   "license": "MIT",
   "type": "extension",
-  "js": "main.js",
+  "js": ["main.js", "htyq-engine.js"],
   "css": "style.css"
 }
