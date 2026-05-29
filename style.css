@@ -1,7 +1,4 @@
-/* 原有样式（请保留你的原有样式，这里只列出新增部分，但为了完整，给出合并版本） */
-/* 注意：如果你已有原来的样式，请将下面的内容追加到末尾；如果没有，直接用这个完整版 */
-
-/* 悬浮球样式 */
+/* ==================== 悬浮球和面板基础样式 ==================== */
 .st-floating-globe {
     position: fixed;
     z-index: 10000;
@@ -22,231 +19,237 @@
 .st-floating-globe:hover { transform: scale(1.05); box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
 .st-globe-icon { font-size: 28px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); pointer-events: none; }
 
-/* 面板样式 */
 .st-floating-panel {
     position: fixed;
     z-index: 10001;
-    background: var(--SmartThemeBodyColor, #1e1e2f);
-    color: var(--SmartThemeTextColor, #e0e0e0);
+    background: #0f172a;
+    color: #e2e8f0;
     border-radius: 16px;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-    min-width: 280px;
-    width: 320px;
-    max-width: 85vw;
-    backdrop-filter: blur(2px);
-    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    border: 1px solid #334155;
     display: none;
     flex-direction: column;
-    transition: opacity 0.2s;
-    user-select: none;
+    overflow: hidden;
 }
 .st-panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 12px 16px;
-    background: var(--SmartThemeHeaderBg, rgba(0,0,0,0.3));
-    border-radius: 16px 16px 0 0;
+    background: #1e2937;
     cursor: grab;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    user-select: none;
-    touch-action: none;
+    border-bottom: 1px solid #334155;
 }
 .st-panel-header:active { cursor: grabbing; }
-.st-panel-title { font-weight: bold; font-size: 16px; letter-spacing: 1px; pointer-events: none; }
+.st-panel-title { font-weight: bold; font-size: 16px; color: #a78bfa; }
 .st-panel-close {
     background: none;
     border: none;
-    color: var(--SmartThemeTextColor, #e0e0e0);
+    color: #94a3b8;
     font-size: 20px;
     cursor: pointer;
     padding: 0 6px;
     border-radius: 8px;
-    transition: background 0.2s;
-    line-height: 1;
-    pointer-events: auto;
 }
-.st-panel-close:hover { background: rgba(255,255,255,0.2); }
+.st-panel-close:hover { background: #334155; color: white; }
 .st-panel-content {
-    padding: 0;
-    min-height: 160px;
-    max-height: 60vh;
-    overflow-y: auto;
-    font-size: 14px;
-    cursor: default;
-    user-select: text;
     flex: 1;
+    overflow-y: auto;
+    padding: 0;
     display: flex;
     flex-direction: column;
 }
 
-/* ========== 活体引擎新增样式 ========== */
+/* PC端面板默认大小 */
+@media (min-width: 769px) {
+    .st-floating-panel {
+        width: 640px !important;
+        height: 700px !important;
+        min-width: 560px;
+        min-height: 500px;
+    }
+}
+@media (max-width: 768px) {
+    .st-floating-panel {
+        width: 90vw !important;
+        max-width: 90vw;
+        height: 80vh !important;
+    }
+}
+
+/* ==================== 活体引擎内部样式 ==================== */
 .htyq-tabs {
-    background: rgba(0,0,0,0.2);
-    border-bottom: 1px solid #374151;
-    padding: 5px 10px 0;
+    background: #0f172a;
+    border-bottom: 1px solid #334155;
+    padding: 8px 12px 0;
 }
 .htyq-tab-buttons {
     display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 4px;
+    flex-wrap: wrap;
+    gap: 6px;
 }
 .htyq-tab-btn {
     background: transparent;
     border: none;
-    color: #9ca3af;
-    padding: 6px 12px;
-    border-radius: 6px;
+    color: #94a3b8;
+    padding: 6px 14px;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 12px;
-    white-space: nowrap;
+    font-size: 13px;
     transition: all 0.2s;
 }
 .htyq-tab-btn.active {
-    background: #4b5563;
+    background: #3b82f6;
     color: white;
 }
 .htyq-view {
     display: none;
-    padding: 12px;
+    padding: 16px;
     overflow-y: auto;
     flex: 1;
 }
-.htyq-view.active {
-    display: block;
-}
+.htyq-view.active { display: block; }
 .htyq-footer {
-    border-top: 1px solid #374151;
-    padding: 10px;
+    border-top: 1px solid #334155;
+    padding: 12px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    background: #111827;
+    background: #0f172a;
 }
 .htyq-evolve-btn {
     background: linear-gradient(135deg, #2563eb, #4f46e5);
     border: none;
     color: white;
-    padding: 8px 16px;
-    border-radius: 6px;
+    padding: 8px 20px;
+    border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
 }
 .htyq-stats {
-    font-size: 12px;
+    font-size: 13px;
     color: #fbbf24;
 }
 .htyq-card {
-    background: #1f2937;
-    border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 12px;
-    border-left: 3px solid #60a5fa;
+    background: #1e2937;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 16px;
+    border-left: 3px solid #3b82f6;
 }
 .htyq-card h3 {
     margin: 0 0 8px 0;
-    font-size: 14px;
+    font-size: 15px;
     color: #60a5fa;
 }
 .htyq-digest {
-    background: #111827;
-    padding: 8px;
-    border-radius: 6px;
-    font-size: 12px;
+    background: #0f172a;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 13px;
     line-height: 1.5;
+    color: #cbd5e1;
 }
-.htyq-chronicle-list {
-    max-height: 500px;
-    overflow-y: auto;
-}
+.htyq-chronicle-list { max-height: 500px; overflow-y: auto; }
 .htyq-chronicle-item {
-    background: #111827;
-    margin-bottom: 10px;
-    padding: 8px;
-    border-radius: 6px;
+    background: #1e2937;
+    margin-bottom: 12px;
+    padding: 10px;
+    border-radius: 8px;
     border-left: 2px solid #fbbf24;
 }
-.htyq-chronicle-title {
-    font-weight: bold;
-    color: #fbbf24;
-    margin-bottom: 4px;
-}
-.htyq-chronicle-content {
-    font-size: 12px;
-    color: #d1d5db;
-}
-.htyq-chronicle-date {
-    font-size: 10px;
-    color: #6b7280;
-    text-align: right;
-}
+.htyq-chronicle-title { font-weight: bold; color: #fbbf24; margin-bottom: 6px; }
+.htyq-chronicle-content { font-size: 12px; color: #cbd5e1; }
+.htyq-chronicle-date { font-size: 10px; color: #64748b; text-align: right; margin-top: 6px; }
 .htyq-event-item, .htyq-faction-item, .htyq-relation-item, .htyq-rumor-item, .htyq-blackmarket-item {
-    background: #111827;
-    padding: 8px;
-    margin-bottom: 8px;
-    border-radius: 6px;
+    background: #1e2937;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 8px;
     border-left: 2px solid #ef4444;
+    font-size: 13px;
+    color: #e2e8f0;
 }
 .htyq-small-btn {
     background: #3b82f6;
     border: none;
     color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 5px 12px;
+    border-radius: 6px;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 12px;
     margin-bottom: 8px;
 }
 .htyq-del-btn {
     background: #ef4444;
     border: none;
     color: white;
-    padding: 2px 6px;
-    border-radius: 3px;
+    padding: 2px 8px;
+    border-radius: 4px;
     cursor: pointer;
     font-size: 10px;
     float: right;
 }
 .htyq-reputation-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    background: #1f2937;
-    padding: 12px;
-    border-radius: 8px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    background: #1e2937;
+    padding: 14px;
+    border-radius: 12px;
 }
 .htyq-settings-section {
-    background: #1f2937;
-    padding: 12px;
-    margin-bottom: 15px;
-    border-radius: 8px;
+    background: #1e2937;
+    padding: 16px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    border: 1px solid #334155;
 }
 .htyq-settings-section h3 {
     margin-top: 0;
-    font-size: 14px;
-    color: #a78bfa;
+    margin-bottom: 12px;
+    font-size: 15px;
+    color: #c084fc;
 }
-.htyq-settings-section input, .htyq-settings-section select {
-    background: #111827;
-    border: 1px solid #4b5563;
-    color: white;
-    padding: 6px;
-    border-radius: 4px;
-    width: 100%;
+.htyq-option-row {
+    margin-bottom: 10px;
+}
+.htyq-option-row label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: #e2e8f0;
+    font-size: 13px;
+}
+/* 强化复选框样式 */
+.htyq-option-row input[type="checkbox"],
+.htyq-checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #3b82f6;
+    margin: 0;
+    cursor: pointer;
+}
+.htyq-nested-settings {
+    margin-left: 24px;
+    margin-top: 8px;
     margin-bottom: 8px;
 }
-.htyq-settings-section label {
-    display: block;
+.htyq-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: #cbd5e1;
+    font-size: 13px;
     margin-bottom: 6px;
-    font-size: 12px;
 }
 .htyq-red-warning {
     background: rgba(220, 38, 38, 0.9);
     color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 16px;
     font-weight: bold;
     animation: htyqPulse 0.5s;
 }
@@ -257,23 +260,36 @@
 .htyq-mobile-select {
     width: 100%;
     padding: 8px;
-    background: #1f2937;
+    background: #1e2937;
     color: white;
-    border: 1px solid #4b5563;
-    border-radius: 6px;
-    margin-bottom: 8px;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    margin-bottom: 10px;
 }
 @media (max-width: 768px) {
-    .htyq-tab-buttons {
-        display: none;
-    }
-    .htyq-mobile-select {
-        display: block;
-    }
-    .htyq-card {
-        padding: 8px;
-    }
-    .htyq-reputation-grid {
-        grid-template-columns: 1fr;
-    }
+    .htyq-tab-buttons { display: none; }
+    .htyq-mobile-select { display: block; }
+    .htyq-reputation-grid { grid-template-columns: 1fr; }
+}
+.htyq-shake-trigger { animation: htyqShake 0.5s; }
+@keyframes htyqShake {
+    0% { transform: translate(0,0); }
+    20% { transform: translate(-8px,4px); }
+    40% { transform: translate(8px,-4px); }
+    60% { transform: translate(-6px,3px); }
+    80% { transform: translate(6px,-3px); }
+    100% { transform: translate(0,0); }
+}
+.htyq-flash-red-trigger::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(255,0,0,0.18);
+    pointer-events: none;
+    z-index: 999999;
+    animation: htyqFlash 0.8s;
+}
+@keyframes htyqFlash {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
 }
