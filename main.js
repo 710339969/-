@@ -1,4 +1,4 @@
-// 悬浮地球面板 - 修复动态加载路径
+// 悬浮地球面板 - 修复模块加载顺序
 (function() {
     if (window.__FLOATING_GLOBE_LOADED__) return;
     window.__FLOATING_GLOBE_LOADED__ = true;
@@ -32,7 +32,7 @@
     const STORAGE_KEY_GLOBE = 'st_floating_globe_pos';
     const STORAGE_KEY_PANEL = 'st_floating_panel_pos';
 
-    // 位置辅助函数
+    // 位置辅助函数（保持不变）
     function getSavedPosition(key, defaultLeft, defaultTop, w, h) {
         const saved = localStorage.getItem(key);
         if (saved) {
@@ -69,7 +69,6 @@
     }
 
     function initPanel() {
-        // 设置面板默认尺寸（PC端）
         if (window.innerWidth > 768) {
             panel.style.width = '540px';
             panel.style.height = '600px';
@@ -103,7 +102,7 @@
         if (panel.style.display !== 'none') clampPosition(panel, STORAGE_KEY_PANEL);
     });
 
-    // 拖拽逻辑（与原版相同，略）
+    // 拖拽逻辑
     function makeDraggable(el, onDragEnd, handleSelector = null) {
         let startX = 0, startY = 0, startLeft = 0, startTop = 0, dragging = false;
         const dragHandle = handleSelector ? el.querySelector(handleSelector) : el;
@@ -207,7 +206,6 @@
             document.addEventListener('click', outsideClickListener);
             document.addEventListener('touchstart', outsideClickListener);
         }
-        // 每次打开面板时，如果引擎未加载则加载
         if (!window.__HTYQ_ENGINE_LOADED__) {
             loadEngineModules();
         }
@@ -222,9 +220,8 @@
         closePanel();
     });
 
-    // ---------- 动态加载模块（路径自动检测）----------
+    // ---------- 动态加载模块（串行加载，确保顺序）----------
     function getScriptBaseUrl() {
-        // 方法1：从当前运行的脚本中查找 main.js 的路径
         const scripts = document.getElementsByTagName('script');
         for (let i = 0; i < scripts.length; i++) {
             const src = scripts[i].src;
@@ -232,70 +229,48 @@
                 return src.substring(0, src.lastIndexOf('/'));
             }
         }
-        // 方法2：降级使用相对路径（假设插件放在 plugins 目录下）
-        return './plugins/floating-globe-panel';  // 如果上面失败，请手动修改为您的实际文件夹名
+        return './plugins/floating-globe-panel';
     }
 
-    function loadEngineModules() {
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error(`Failed to load ${src}`));
+            document.head.appendChild(script);
+        });
+    }
+
+    async function loadEngineModules() {
+        if (window.__HTYQ_ENGINE_LOADED__) return;
         const baseUrl = getScriptBaseUrl();
         console.log('模块加载基础路径:', baseUrl);
-        const modules = ['htyq-rules.js', 'htyq-state.js', 'htyq-ui.js', 'htyq-evolution.js'];
-        let loadedCount = 0;
-        let errors = [];
-
-        function onModuleLoaded() {
-            loadedCount++;
-            if (loadedCount === modules.length) {
-                if (window.HTYQ_UI && window.HTYQ_UI.buildUI) {
-                    window.HTYQ_UI.buildUI();
-                    console.log('活体引擎UI已构建');
-                } else {
-                    console.error('UI模块未正确加载');
-                    document.getElementById('htyq-panel-content').innerHTML = '<div style="padding:20px;color:red;">UI模块加载失败，请刷新页面重试。</div>';
-                }
-                if (window.HTYQ_EVOLUTION && window.HTYQ_EVOLUTION.start) {
-                    window.HTYQ_EVOLUTION.start();
-                }
-                window.__HTYQ_ENGINE_LOADED__ = true;
+        const modules = ['htyq-state.js', 'htyq-rules.js', 'htyq-ui.js', 'htyq-evolution.js'];
+        try {
+            for (const mod of modules) {
+                await loadScript(`${baseUrl}/${mod}`);
             }
-        }
-
-        function onModuleError(module) {
-            errors.push(module);
-            console.error(`加载模块失败: ${module}`);
+            if (window.HTYQ_UI && window.HTYQ_UI.buildUI) {
+                window.HTYQ_UI.buildUI();
+                console.log('活体引擎UI已构建');
+            } else {
+                throw new Error('UI模块未正确加载');
+            }
+            if (window.HTYQ_EVOLUTION && window.HTYQ_EVOLUTION.start) {
+                window.HTYQ_EVOLUTION.start();
+            }
+            window.__HTYQ_ENGINE_LOADED__ = true;
+        } catch (err) {
+            console.error('模块加载失败:', err);
             document.getElementById('htyq-panel-content').innerHTML = `
                 <div style="padding:20px;color:red;">
                     <strong>模块加载失败</strong><br>
-                    无法加载 ${module}，请确保文件存在于插件目录。<br>
-                    当前路径: ${baseUrl}/${module}<br>
-                    可能原因：文件缺失或路径不正确。
+                    ${err.message}<br>
+                    请检查控制台并刷新页面。
                 </div>
             `;
         }
-
-        modules.forEach(module => {
-            const script = document.createElement('script');
-            script.src = `${baseUrl}/${module}`;
-            script.onload = onModuleLoaded;
-            script.onerror = () => onModuleError(module);
-            document.head.appendChild(script);
-        });
-
-        // 设置超时，防止永远卡住
-        setTimeout(() => {
-            if (loadedCount < modules.length) {
-                const missing = modules.filter(m => !window[`__HTYQ_${m.toUpperCase().replace('.js','')}_LOADED__`]);
-                if (missing.length) {
-                    document.getElementById('htyq-panel-content').innerHTML = `
-                        <div style="padding:20px;color:orange;">
-                            <strong>加载超时</strong><br>
-                            以下模块未加载成功：${missing.join(', ')}<br>
-                            请检查文件是否存在并刷新页面。
-                        </div>
-                    `;
-                }
-            }
-        }, 10000);
     }
 
     initGlobe();
