@@ -22,9 +22,7 @@
         </div>
         <div class="st-panel-content" id="st-panel-content">
             <p style="text-align: center; color: var(--SmartThemeHintColor, #aaa);">
-                ✨ 空白面板 ✨<br>
-                可拖拽移动<br>
-                可自行添加内容
+                ⏳ 加载活体引擎中...
             </p>
         </div>
     `;
@@ -202,6 +200,10 @@
             document.addEventListener('click', outsideClickListener);
             document.addEventListener('touchstart', outsideClickListener);
         }
+        // 每次打开面板时，如果引擎未加载则动态加载
+        if (!window.__HTYQ_ENGINE_LOADED__) {
+            loadHtyqEngine();
+        }
     }
 
     function togglePanel() {
@@ -212,6 +214,21 @@
         e.stopPropagation();
         closePanel();
     });
+
+    // 动态加载活体引擎脚本
+    function loadHtyqEngine() {
+        if (document.getElementById('htyq-engine-script')) return;
+        const script = document.createElement('script');
+        script.id = 'htyq-engine-script';
+        script.src = 'plugins/您的插件文件夹名/htyq-engine.js';  // 请修改为实际路径
+        script.onload = () => console.log('活体引擎加载成功');
+        script.onerror = (err) => {
+            console.error('活体引擎加载失败', err);
+            const contentDiv = document.getElementById('st-panel-content');
+            if (contentDiv) contentDiv.innerHTML = '<p style="color:red;">活体引擎加载失败，请检查控制台错误。</p>';
+        };
+        document.head.appendChild(script);
+    }
 
     initGlobe();
     initPanel();
