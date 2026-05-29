@@ -1,0 +1,130 @@
+/* 悬浮球样式 */
+.st-floating-ball {
+    position: fixed;
+    z-index: 9999;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+.st-floating-ball:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.st-floating-ball.active {
+    transform: scale(1.1);
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.st-floating-ball svg {
+    width: 60%;
+    height: 60%;
+    color: white;
+}
+
+/* 面板样式 */
+.st-floating-panel {
+    position: fixed;
+    z-index: 9998;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+/* 面板头部 */
+.st-floating-panel-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: move;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.st-floating-panel-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s ease;
+}
+
+.st-floating-panel-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* 面板内容 */
+.st-floating-panel-content {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    background: #f8f9fa;
+}
+
+.st-floating-panel-placeholder {
+    text-align: center;
+    color: #6c757d;
+    padding: 40px 20px;
+}
+
+.st-floating-panel-placeholder p {
+    margin: 8px 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .st-floating-ball {
+        width: 45px !important;
+        height: 45px !important;
+    }
+    
+    .st-floating-panel {
+        width: calc(100vw - 40px) !important;
+        height: calc(100vh - 100px) !important;
+        left: 20px !important;
+        top: 60px !important;
+        border-radius: 16px;
+    }
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+    .st-floating-panel {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    .st-floating-panel-content {
+        background: #1a202c;
+    }
+    
+    .st-floating-panel-placeholder {
+        color: #a0aec0;
+    }
+}
