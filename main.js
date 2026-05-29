@@ -224,16 +224,24 @@
             'htyq-evolution.js'
         ];
         let loadedCount = 0;
+        let errors = [];
         function onModuleLoaded() {
             loadedCount++;
             if (loadedCount === modules.length) {
-                // 所有模块加载完成后，启动引擎
-                if (window.HTYQ && window.HTYQ.startEngine) {
-                    window.HTYQ.startEngine();
+                // 所有模块加载完成后，构建UI并启动推演
+                if (window.HTYQ_UI && window.HTYQ_UI.buildUI) {
+                    window.HTYQ_UI.buildUI();
+                    console.log('活体引擎UI已构建');
                 } else {
-                    console.error('引擎启动函数未找到');
-                    document.getElementById('htyq-panel-content').innerHTML = '<div style="padding:20px;color:red;">引擎加载失败，请刷新页面重试。</div>';
+                    console.error('UI模块未正确加载');
+                    document.getElementById('htyq-panel-content').innerHTML = '<div style="padding:20px;color:red;">UI模块加载失败，请刷新页面重试。</div>';
                 }
+                if (window.HTYQ_EVOLUTION && window.HTYQ_EVOLUTION.start) {
+                    window.HTYQ_EVOLUTION.start();
+                } else {
+                    console.warn('推演模块未正确加载，手动推演可能不可用');
+                }
+                window.__HTYQ_ENGINE_LOADED__ = true;
             }
         }
         modules.forEach(module => {
@@ -242,6 +250,7 @@
             script.onload = onModuleLoaded;
             script.onerror = () => {
                 console.error(`加载模块失败: ${module}`);
+                errors.push(module);
                 document.getElementById('htyq-panel-content').innerHTML = `<div style="padding:20px;color:red;">加载模块 ${module} 失败，请检查文件是否存在。</div>`;
             };
             document.head.appendChild(script);
@@ -256,7 +265,8 @@
                 return src.substring(0, src.lastIndexOf('/'));
             }
         }
-        return './plugins/YourPluginFolderName'; // 手动修改为实际路径
+        // 如果自动获取失败，请手动修改为您的插件实际路径（相对于根目录）
+        return './plugins/floating-globe-panel';  // 请修改为实际文件夹名
     }
 
     initGlobe();
