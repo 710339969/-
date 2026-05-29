@@ -1,4 +1,4 @@
-// 推演核心模块 - 完整修复版
+// 推演核心模块 - 完整修复版（修复重试逻辑 & active_contact 变更标记）
 window.HTYQ_EVOLUTION = (function() {
     const STATE = window.HTYQ_STATE;
     const RULES = window.HTYQ_RULES;
@@ -32,7 +32,6 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) { console.warn(e); }
     }
 
-    // 根据世界书名称获取内容（从已激活条目中筛选）
     function getWorldContentByNames(worldNames) {
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
@@ -46,12 +45,10 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) { return ''; }
     }
 
-    // ========== 构建 Prompt ==========
     function buildEvolutionPrompt() {
         const rules = RULES.getFullSystemRules(STATE.globalApiSettings.enabledDlcs);
         let worldContext = '';
 
-        // 角色卡信息
         try {
             const ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext) ? SillyTavern.getContext() : getContext();
             const charId = ctx.characterId;
@@ -70,7 +67,6 @@ window.HTYQ_EVOLUTION = (function() {
             }
         } catch(e) { console.warn(e); }
 
-        // 世界书内容
         let worldContent = '';
         const ws = STATE.worldState;
         if (ws.autoBindCharacterWorld) {
@@ -99,7 +95,6 @@ window.HTYQ_EVOLUTION = (function() {
         return `${rules}\n${worldContext}\n当前世界状态：\n轮次：${s.round}\n世界摘要：${s.worldDigest}\n星象：${s.astrology}\n事件链：${JSON.stringify(s.events.slice(0,5))}\n团体：${JSON.stringify(s.factions.slice(0,5))}\n流言：${JSON.stringify(s.rumors.slice(0,5))}\n声誉：${JSON.stringify(s.reputation)}\n金币：${s.economy.userGold}\n请根据上述角色设定和世界书，推演世界新状态，以JSON格式返回，必须包含字段：world_digest, astrology, reputation(四个维度), rumors(数组), events(数组), factions(数组), faction_relations(数组), economy(包含userGold变化和marketTrend), blackMarket(数组), active_contact(可选), accidents(数组)。只返回JSON，不要有其他文字。`;
     }
 
-    // ========== 应用推演结果（加强校验） ==========
     function applyEvolution(data) {
         if (!data || typeof data !== 'object') {
             console.error('推演数据无效:', data);
@@ -178,6 +173,10 @@ window.HTYQ_EVOLUTION = (function() {
             }
             changed = true;
         }
+        // 【修复】active_contact 也应视为有效变更
+        if (data.active_contact) {
+            changed = true;
+        }
         if (!changed) {
             console.warn('推演未产生任何有效数据更新', data);
             STATE.showFloatingWarning('推演返回数据无有效变更，请检查模型输出', true);
@@ -188,7 +187,6 @@ window.HTYQ_EVOLUTION = (function() {
         return true;
     }
 
-    // ========== 推演与重试（带详细日志） ==========
     let isEvolving = false;
     let currentRetry = 0;
     let floatingToast = null;
@@ -224,7 +222,8 @@ window.HTYQ_EVOLUTION = (function() {
         floatingToast = null;
     }
 
-    async function attemptEvolution(manual, retry = false) {
+    // 【修复】重试逻辑：不再传递 retry 标志，仅基于 currentRetry
+    async function attemptEvolution(manual) {
         const maxRetries = 3;
         try {
             const prompt = buildEvolutionPrompt();
@@ -285,12 +284,12 @@ window.HTYQ_EVOLUTION = (function() {
             return;
         } catch (err) {
             console.error('推演错误:', err);
-            if (retry || currentRetry >= maxRetries) throw err;
+            if (currentRetry >= maxRetries) throw err;
             currentRetry++;
             const retryMsg = `🌍 推演失败 (${err.message})，第${currentRetry}/${maxRetries}次重试...`;
             showPersistentToast(retryMsg, true, 3000);
             await new Promise(r => setTimeout(r, 2000));
-            return attemptEvolution(manual, true);
+            return attemptEvolution(manual);
         }
     }
 
@@ -301,7 +300,7 @@ window.HTYQ_EVOLUTION = (function() {
         }
         isEvolving = true;
         currentRetry = 0;
-        showPersistentToast('🌍 世界演化中... 第1次尝试', false);
+        showPersistentToast('🌍 世界演化中...', false);
         try {
             await attemptEvolution(manual);
         } catch (err) {
@@ -327,7 +326,6 @@ window.HTYQ_EVOLUTION = (function() {
         } catch(e) {}
     }
 
-    // ========== 自动推演与事件绑定 ==========
     let autoPollCounter = 0;
     let eventsBound = false;
 
@@ -387,7 +385,6 @@ window.HTYQ_EVOLUTION = (function() {
     return { runEvolution, start, _buildPrompt: buildEvolutionPrompt, _applyEvolution: applyEvolution };
 })();
 
-// 自动启动
 if (window.HTYQ_UI && window.HTYQ_UI.buildUI) {
     window.HTYQ_EVOLUTION.start();
 } else {
